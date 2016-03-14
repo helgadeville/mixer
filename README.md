@@ -60,41 +60,70 @@ Use it freely, and provide Your feedback. Use this software only with accordance
             (ctrl-c on running application will produce benchmarks)
 
 
- Options:
-  -min<number>     - minimum number of characters (default 8)
-  -max<number>     - maximum number of characters (recommended to use this)
-  -s<charset>      - use provided charset
-  -f<path>         - read basic wordset from file instead of stdin
-  -w<path>         - write generated wordset to file instead of stdout, cannot be used with -p
-  -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)
-  -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)
-  -l<number>       - minimum number of mixed words (recommended to use this)
-  -L<number>       - maximum number of mixed words (recommended to use this)
-  -i<number>       - ignore words shorter than certain number of characters (1 by default). If set and -min is not used,
+    Options:
+    
+    -min<number>     - minimum number of characters (default 8)
+    
+    -max<number>     - maximum number of characters (recommended to use this)
+    
+    -s<charset>      - use provided charset
+    
+    -f<path>         - read basic wordset from file instead of stdin
+    
+    -w<path>         - write generated wordset to file instead of stdout, cannot be used with -p
+    
+    -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)
+    
+    -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)
+    
+    -l<number>       - minimum number of mixed words (recommended to use this)
+    
+    -L<number>       - maximum number of mixed words (recommended to use this)
+    
+    -i<number>       - ignore words shorter than certain number of characters (1 by default). If set and -min is not used,
                      it will also override -min default setting.
-  -I<number>       - ignore words longer than certain number of characters (64 by default if -max
+                     
+    -I<number>       - ignore words longer than certain number of characters (64 by default if -max
                      is not used, if -max is used, then by default equal to -max; -I supercedes -max)
-  -n               - do not repeat words in phrase
-  -tl              - pre-process all words to lowercase
-  -tu              - pre-process all words to uppercase
-  -c               - generate more words by capitalizing first letter of the word
-  -d               - generate more words by decapitalizing first letter of the word
-  -u               - generate more words by permutatively capitalizing all letters of the word (supercedes -c).
+                     
+    -n               - do not repeat words in phrase
+    
+    -tl              - pre-process all words to lowercase
+    
+    -tu              - pre-process all words to uppercase
+    
+    -c               - generate more words by capitalizing first letter of the word
+    
+    -d               - generate more words by decapitalizing first letter of the word
+    
+    -u               - generate more words by permutatively capitalizing all letters of the word (supercedes -c).
                      This will also lowercase all the words given. Use with caution.
-  -e               - eliminate repeating words, this may take a very long time
-  -x<number>       - resume at specific line number, cannot be used with -z.
-  -z<data>         - resume at specific program state, fast, but requires special data format, excludes -x.
-  -q<number>       - quit at specific line number
-  -b               - run benchmark only for 10 seconds, this excludes all other options
-  -v[number]       - number specifies operations per second; this option will give additional
-  -p<path>         - path to .cap file, this will pipe pyrit command with parameters:
+                     
+    -e               - eliminate repeating words, this may take a very long time
+    
+    -x<number>       - resume at specific line number, cannot be used with -z.
+    
+    -z<data>         - resume at specific program state, fast, but requires special data format, excludes -x.
+    
+    -q<number>       - quit at specific line number
+    
+    -b               - run benchmark only for 10 seconds, this excludes all other options
+    
+    -v[number]       - number specifies operations per second; this option will give additional
+    
+    -p<path>         - path to .cap file, this will pipe pyrit command with parameters:
                        pyrit -r <path> -i - attack_passthrough
-  -g<path>         - complete path to pyrit, if relative does not work
-  -a<path>         - read arguments from file, cannot be used with other arguments
-  -h<dir path>     - read all files from given directory and invoke this program with -a<path>
+                       
+    -g<path>         - complete path to pyrit, if relative does not work
+    
+    -a<path>         - read arguments from file, cannot be used with other arguments
+    
+    -h<dir path>     - read all files from given directory and invoke this program with -a<path>
                      for each file found, this option cannot be used with any other options
-  -o<path>         - write regular update of state to given file, this file can be used with -a option
-  -O<number>       - regular update write in each of <number> cycles; this option requires -o<path>
+                     
+    -o<path>         - write regular update of state to given file, this file can be used with -a option
+    
+    -O<number>       - regular update write in each of <number> cycles; this option requires -o<path>
                      if not specified, then 1000000 is used
 
                      Note: use SIGUSR1 to trigger printout of current word.
