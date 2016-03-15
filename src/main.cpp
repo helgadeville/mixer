@@ -873,7 +873,7 @@ int main(int argc, const char * argv[]) {
         }
         char* buffer = new char[fstat.st_size + 1];
         memset(buffer, 0, fstat.st_size + 1);
-        size_t read = fread(buffer, 1, fstat.st_size, inf);
+        ssize_t read = fread(buffer, 1, fstat.st_size, inf);
         fclose(inf);
         if (read == fstat.st_size) {
             string str = "";
@@ -900,7 +900,7 @@ int main(int argc, const char * argv[]) {
             // now args... for execvp
             size_t argl = args.size();
             const char** newArgs = new const char* [argl + 1];
-            for(int i = 0 ; i < argl ; i++) {
+            for(size_t i = 0 ; i < argl ; i++) {
                 newArgs[i] = args.at(i).c_str();
             }
             newArgs[argl] = nullptr;
