@@ -2,7 +2,7 @@
 A wrapper around pyrit WPA cracker; resumable multiple dictionaries mixer with charset support
 
 *** LINUX NOT FULLY SUPPORTED ! *** right now, linux'es popen does not support open for RW,
-therefore, opening pipe on Linux does NOT work.
+therefore, on Linux pyrit will be used with -o option.
 
 * WARNING * I know this code is ugly and looks like s**t. BUT, it does what it was supposed to,
 and if I get enough requests for refactoring - I will make it out into a beautiful C++ project.
