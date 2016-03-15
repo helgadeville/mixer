@@ -1,9 +1,18 @@
 DEBUGOPTS=
 
-all: build/oooshaker
+all: build build/mixer after
 
-build/oooshaker: build/oooshaker.o
-	g++ -o build/oooshaker build/oooshaker.o ${DEBUGOPTS}
+build:
+	mkdir -p build
 
-build/oooshaker.o: src/main.cpp
-	g++ -c -std=c++11 -Wall -o build/oooshaker.o src/main.cpp ${DEBUGOPTS}
+build/mixer: build/mix
+	g++ -o build/mix build/mix.o ${DEBUGOPTS}
+
+build/mix: src/main.cpp
+	g++ -c -std=c++11 -Wall -o build/mix.o src/main.cpp ${DEBUGOPTS}
+
+after:
+	rm build/mix.o
+
+clean:
+	rm -rf build
