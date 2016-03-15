@@ -5,4 +5,5 @@ Debug
 Debug/*
 Release
 Release/*
-
+mixer.xcodeproj
+mixer.xcodeproj/*

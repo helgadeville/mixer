@@ -91,6 +91,8 @@ std::map<int, std::vector<std::vector<int>>> producedPatterns;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
+const char* pyritNoRW = "%s -r %s -i - -o %s attack_passthrough";
+bool pyritNoRWflag = false;
 FILE* poutput = nullptr;
 int dpoutput = 0;
 const char* capFile = nullptr;
@@ -1274,6 +1276,14 @@ int main(int argc, const char * argv[]) {
         }
         sprintf(buffer, pyrit, pyritPath, capFile);
         poutput = popen(buffer, "r+"); // was r+
+        // r+ not supported, write only
+        if (!poutput && errno == EINVAL) {
+            pyritNoRWflag = true;
+            if (outFile) {
+                sprintf(buffer, pyritNoRW, pyritPath, capFile, outFile);
+            }
+            poutput = popen(buffer, "w");
+        }
         if (!poutput) {
             std::cerr << "Could not open pyrit with pipe." << std::endl;
             cleanup();
@@ -1720,6 +1730,10 @@ char pbuffer[PBUFFER_SIZE];
 
 int readPipe() {
     int ret = 0;
+    // cannot read if not readable
+    if (pyritNoRWflag) {
+        return 0;
+    }
     struct pollfd pefs;
     pefs.fd = dpoutput;
     pefs.events = POLLIN;
