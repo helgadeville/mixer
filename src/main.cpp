@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <poll.h>
 #include <dirent.h>
+#include <unistd.h>
 
 using namespace std;
 
