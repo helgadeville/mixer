@@ -879,7 +879,7 @@ int main(int argc, const char * argv[]) {
             string str = "";
             vector<string> args;
             args.push_back(argv[0]);
-            for(size_t i = 0; i < read + 1 ; i++) {
+            for(ssize_t i = 0; i < read + 1 ; i++) {
                 char c = buffer[i];
                 if( c == ' ' || c == 10 || c == 0){
                     if (str.length() > 0) {
