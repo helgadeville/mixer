@@ -91,8 +91,7 @@ std::map<int, std::vector<std::vector<int>>> producedPatterns;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
-const char* pyritNoRW = "%s -r %s -i - -o %s attack_passthrough";
-bool pyritNoRWflag = false;
+const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
 FILE* poutput = nullptr;
 int dpoutput = 0;
 const char* capFile = nullptr;
@@ -1274,16 +1273,12 @@ int main(int argc, const char * argv[]) {
         if (!pyritPath) {
             pyritPath = defPyritPath;
         }
-        sprintf(buffer, pyrit, pyritPath, capFile);
-        poutput = popen(buffer, "r+"); // was r+
-        // r+ not supported, write only
-        if (!poutput && errno == EINVAL) {
-            pyritNoRWflag = true;
-            if (outFile) {
-                sprintf(buffer, pyritNoRW, pyritPath, capFile, outFile);
-            }
-            poutput = popen(buffer, "w");
+        if (outFile) {
+            sprintf(buffer, pyritwOutput, pyritPath, capFile, outFile);
+        } else {
+            sprintf(buffer, pyrit, pyritPath, capFile);
         }
+        poutput = popen(buffer, "w");
         if (!poutput) {
             std::cerr << "Could not open pyrit with pipe." << std::endl;
             cleanup();
@@ -1725,64 +1720,10 @@ void premix() {
     }
 }
 
-const int PBUFFER_SIZE = 1024;
-char pbuffer[PBUFFER_SIZE];
-
-int readPipe() {
-    int ret = 0;
-    // cannot read if not readable
-    if (pyritNoRWflag) {
-        return 0;
-    }
-    struct pollfd pefs;
-    pefs.fd = dpoutput;
-    pefs.events = POLLIN;
-    int polled = poll(&pefs, 1, 0);
-    if (polled > 0) {
-        ssize_t bread = read(dpoutput, pbuffer, PBUFFER_SIZE);
-        ret += bread;
-        if (bread > 0) {
-            if (output) {
-                output->write(pbuffer, bread);
-            } else
-                if (outFile) {
-                    FILE* out = fopen(outFile, "a");
-                    if (out) {
-                        fwrite(pbuffer, bread, 1, out);
-                        fclose(out);
-                    } else {
-                        // write error
-                        std::cerr << "Write to file error: " << outFile << std::endl;
-                        return -1;
-                    }
-                } else {
-                    // SOMETHING BAD HAPPENED !
-                    std::cerr << "Configuration error: no output." << std::endl;
-                    return -1;
-                }
-        } else {
-            // pipe closed
-            std::cerr << "Pipe closed." << std::endl;
-            return -1;
-        }
-    }
-    return ret;
-}
-
 void push(char* buffer, int len) {
     if (resumeAt <= linesWritten) {
         bytesWritten += len;
         if (poutput) {
-            // try to read
-            int piped;
-            do {
-                piped = readPipe();
-                if (piped < 0) {
-                    std::cerr << "Something bad happened while reading pipe." << std::endl;
-                    quit = true;
-                }
-            } while(piped > 0);
-            // then check
             if (write(dpoutput, buffer, len) < 0 || write(dpoutput, "\n", 1) < 0) {
                 std::cerr << "Child input terminated. Pipe closed." << std::endl;
                 quit = true;
@@ -2077,7 +2018,6 @@ void pattern() {
 
 void cleanup() {
     if (poutput) {
-        for(; readPipe() > 0 ; );
         pclose(poutput);
         poutput = nullptr;
     }
