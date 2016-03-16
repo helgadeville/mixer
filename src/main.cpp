@@ -194,7 +194,7 @@ void write_data() {
         std::cerr << "Complete line to resume is:" << std::endl;
         for(int i = 0 ; i < argNum ; i++) {
             const char* nxtArg = argVal[i];
-            if (strlen(nxtArg) > 2 && 0 != strncmp(nxtArg, "-z", 2)) {
+            if (strlen(nxtArg) >= 2 && 0 != strncmp(nxtArg, "-z", 2)) {
                 std::cerr << nxtArg << " ";
             }
         }
@@ -1742,7 +1742,7 @@ void push(char* buffer, int len) {
                 for(int i = 1 ; i < argNum ; i++) {
                     const char* nxtArg = argVal[i];
                     size_t len = strlen(nxtArg);
-                    if (len > 2 && 0 != strncmp(nxtArg, "-z", 2)) {
+                    if (len >= 2 && 0 != strncmp(nxtArg, "-z", 2)) {
                         fwrite(nxtArg, len, 1, update);
                         fwrite(" ", 1, 1, update);
                     }
