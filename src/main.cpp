@@ -1048,8 +1048,7 @@ int main(int argc, const char * argv[]) {
     if (outFile) {
         if (capFile) {
             // if capFile then just check if the file exists
-            // maybe truncate it
-            FILE* check = fopen(outFile, "w");
+            FILE* check = fopen(outFile, "a");
             if (!check) {
                 std::cerr << "Could not open file for writing: " << outFile << std::endl;
                 cleanup();
@@ -1070,7 +1069,8 @@ int main(int argc, const char * argv[]) {
     }
     // check update file
     if (oFile) {
-        FILE* check = fopen(oFile, "w");
+        // check if exists and writable
+        FILE* check = fopen(oFile, "a");
         if (!check) {
             std::cerr << "Could not open update file for writing: " << oFile << std::endl;
             cleanup();
