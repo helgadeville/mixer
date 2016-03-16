@@ -13,5 +13,8 @@ build/mix: src/main.cpp
 
 after:
 
+install: all
+	cp build/mix /usr/local/bin/mix
+
 clean:
 	rm -rf build
