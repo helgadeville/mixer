@@ -108,6 +108,7 @@ void resetCounters();
 void producePatterns(int minLen, int maxLen);
 std::vector<std::vector<int>> getPatterns(int forLen);
 std::vector<std::vector<int>> getPatterns(int minLen, int maxLen);
+std::vector<char*> realPaths;
 std::string getResumeData();
 void pattern();
 void cleanup();
@@ -279,7 +280,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.5.1)" << std::endl;
+    std::cerr << "    (version 0.5.2)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -288,7 +289,7 @@ void usage() {
     std::cerr << "            (ctrl-c on running application will produce benchmarks)" << std::endl;
     std::cerr << std::endl;
     std::cerr << std::endl;
-    std::cerr << " Options:" << std::endl;
+    std::cerr << " Options: (please note that you may separate values from option or concatenate them)" << std::endl;
     std::cerr << "  -min<number>     - minimum number of characters (default 8)" << std::endl;
     std::cerr << "  -max<number>     - maximum number of characters (recommended to use this)" << std::endl;
     std::cerr << "  -s<charset>      - use provided charset" << std::endl;
@@ -370,25 +371,32 @@ int main(int argc, const char * argv[]) {
     assert(argv);
     vector<char*> replacev;
     bool anyOption = false;
+    const char* lastCommand = nullptr;
     for(int i = 1 ; i < argc ; i++) {
         const char* arg = argv[i];
         int alen = (int)strlen(arg);
         if (alen <=0) {
             continue;
         }
-        if (arg[0] == '-' && wordCount <= 0) {
+        if ((arg[0] == '-' || lastCommand) && wordCount <= 0) {
             // parse argument
             const char* rarg = &arg[1];
-            if (strncmp(rarg, "min", 3) == 0) {
+            if (strncmp(rarg, "min", 3) == 0 || (lastCommand && strncmp(lastCommand, "min", 3) == 0)) {
                 if (minChar >= 0) {
                     std::cerr << "-min cannot be used multiple times." << std::endl;
                     return -1;
                 }
-                rarg = &arg[4];
+                rarg = &arg[lastCommand ? 0 : 4];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-min requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-min requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 minChar = atoi(rarg);
                 if (minChar <= 0) {
                     std::cerr << "-min requires number: " << arg << std::endl;
@@ -396,16 +404,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "max", 3) == 0) {
+            if (strncmp(rarg, "max", 3) == 0 || (lastCommand && strncmp(lastCommand, "max", 3) == 0)) {
                 if (maxChar >= 0) {
                     std::cerr << "-max cannot be used multiple times." << std::endl;
                     return -1;
                 }
-                rarg = &arg[4];
+                rarg = &arg[lastCommand ? 0 : 4];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-max requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-max requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 maxChar = atoi(rarg);
                 if (ignoreLongerThan <= 0) {
                     ignoreLongerThan = maxChar;
@@ -416,30 +430,53 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "s", 1) == 0) {
-                const char* chars = &rarg[1];
+            if (strncmp(rarg, "s", 1) == 0 || (lastCommand && strncmp(lastCommand, "s", 1) == 0)) {
+                const char* chars = &rarg[lastCommand ? 0 : 1];
                 if (strlen(chars) <= 0) {
-                    std::cerr << "-s requires at least one character more: " << arg << std::endl;;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-s requires at least one character more: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 charset.push_back(chars);
                 anyOption = true;
             } else
-            if (strncmp(rarg, "f", 1) == 0) {
-                const char* inF = &rarg[1];
-                if (strlen(inF) <= 0) {
-                    std::cerr << "-f requires at least one character more: " << arg << std::endl;;
-                    return -1;
+            if (strncmp(rarg, "f", 1) == 0 || (lastCommand && strncmp(lastCommand, "f", 1) == 0)) {
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-f requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
-                inFile.push_back(inF);
+                lastCommand = nullptr;
+                inFile.push_back(rarg);
                 anyOption = true;
             } else
-            if (strncmp(rarg, "w", 1) == 0) {
+            if (strncmp(rarg, "w", 1) == 0 || (lastCommand && strncmp(lastCommand, "w", 1) == 0)) {
                 if (outFile != nullptr) {
                     std::cerr << "-w cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                outFile = &rarg[1];
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(outFile) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-w requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                outFile = rarg;
                 anyOption = true;
             } else
             if (strncmp(rarg, "n", 1) == 0) {
@@ -474,12 +511,18 @@ int main(int argc, const char * argv[]) {
                 toUpper = true;
                 anyOption = true;
             } else
-            if (strncmp(rarg, "r", 1) == 0) {
-                const char* rrarg = &rarg[1];
+            if (strncmp(rarg, "r", 1) == 0 || (lastCommand && strncmp(lastCommand, "r", 1) == 0)) {
+                const char* rrarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rrarg) != 2) {
-                    std::cerr << "-r requires exactly 2 characters afterwards: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-r requires exactly 2 characters afterwards: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 char* replac = new char[2];
                 replac[0] = rrarg[0];
                 replac[1] = rrarg[1];
@@ -497,12 +540,18 @@ int main(int argc, const char * argv[]) {
                 replacev.push_back(replac);
                 anyOption = true;
             } else
-            if (strncmp(rarg, "R", 1) == 0) {
-                const char* rrarg = &rarg[1];
+            if (strncmp(rarg, "R", 1) == 0 || (lastCommand && strncmp(lastCommand, "R", 1) == 0)) {
+                const char* rrarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rrarg) != 2) {
-                    std::cerr << "-r requires exactly 2 characters afterwards: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-r requires exactly 2 characters afterwards: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 char* replac = new char[2];
                 char lower = tolower(rrarg[0]);
                 replac[0] = lower;
@@ -539,16 +588,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "l", 1) == 0) {
+            if (strncmp(rarg, "l", 1) == 0 || (lastCommand && strncmp(lastCommand, "l", 1) == 0)) {
                 if (minNumPositions > 0) {
                     std::cerr << "-l cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-l requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-l requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 minNumPositions = atoi(rarg);
                 if (minNumPositions <= 0) {
                     std::cerr << "-l requires number: " << arg << std::endl;
@@ -556,16 +611,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "L", 1) == 0) {
+            if (strncmp(rarg, "L", 1) == 0 || (lastCommand && strncmp(lastCommand, "L", 1) == 0)) {
                 if (maxNumPositions > 0) {
                     std::cerr << "-L cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-L requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-L requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 maxNumPositions = atoi(rarg);
                 if (maxNumPositions <= 0) {
                     std::cerr << "-L requires number: " << arg << std::endl;
@@ -573,16 +634,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "i", 1) == 0) {
+            if (strncmp(rarg, "i", 1) == 0 || (lastCommand && strncmp(lastCommand, "i", 1) == 0)) {
                 if (ignoreShorterThan > 1) {
                     std::cerr << "-i cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-i requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-i requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 ignoreShorterThan = atoi(rarg);
                 if (minChar <= 0) {
                     minChar = ignoreShorterThan;
@@ -593,16 +660,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "I", 1) == 0) {
+            if (strncmp(rarg, "I", 1) == 0 || (lastCommand && strncmp(lastCommand, "I", 1) == 0)) {
                 if (ignoreLongerThan > 0) {
                     std::cerr << "-I cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-I requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-I requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 ignoreLongerThan = atoi(rarg);
                 if (ignoreLongerThan <= 0) {
                     std::cerr << "-I requires number: " << arg << std::endl;
@@ -642,16 +715,22 @@ int main(int argc, const char * argv[]) {
                 reduceRepeats = true;
                 anyOption = true;
             } else
-            if (strncmp(rarg, "x", 1) == 0) {
+            if (strncmp(rarg, "x", 1) == 0 || (lastCommand && strncmp(lastCommand, "x", 1) == 0)) {
                 if (resumeAt > 0) {
                     std::cerr << "-x cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-x requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-x requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 resumeAt = atol(rarg);
                 if (resumeAt <= 0) {
                     std::cerr << "-x requires number: " << arg << std::endl;
@@ -659,29 +738,41 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "z", 1) == 0) {
+            if (strncmp(rarg, "z", 1) == 0 || (lastCommand && strncmp(lastCommand, "z", 1) == 0)) {
                 if (resumeData != nullptr) {
                     std::cerr << "-z cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-z requires data: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-z requires data: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 resumeData = rarg;
                 anyOption = true;
             } else
-            if (strncmp(rarg, "q", 1) == 0) {
+            if (strncmp(rarg, "q", 1) == 0 || (lastCommand && strncmp(lastCommand, "q", 1) == 0)) {
                 if (quitAt > 0) {
                     std::cerr << "-q cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-q requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-q requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 quitAt = atol(rarg);
                 if (quitAt <= 0) {
                     std::cerr << "-q requires number: " << arg << std::endl;
@@ -689,23 +780,45 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (strncmp(rarg, "p", 1) == 0) {
+            if (strncmp(rarg, "p", 1) == 0 || (lastCommand && strncmp(lastCommand, "p", 1) == 0)) {
                 if (capFile != nullptr) {
                     std::cerr << "-p cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                capFile = &rarg[1];
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-p requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                capFile = rarg;
                 anyOption = true;
             } else
-            if (strncmp(rarg, "g", 1) == 0) {
+            if (strncmp(rarg, "g", 1) == 0 || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
                 if (pyritPath != nullptr) {
                     std::cerr << "-g cannot be used multiple times." << std::endl;;
                     return -1;
                 }
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-g requires pyrit path: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
                 pyritPath = &rarg[1];
                 anyOption = true;
             } else
-            if (strncmp(rarg, "a", 1) == 0) {
+            if (strncmp(rarg, "a", 1) == 0 || (lastCommand && strncmp(lastCommand, "a", 1) == 0)) {
                 if (argFile != nullptr) {
                     std::cerr << "-a cannot be used multiple times." << std::endl;;
                     return -1;
@@ -714,10 +827,20 @@ int main(int argc, const char * argv[]) {
                     std::cerr << "-a cannot be used with any other option." << std::endl;;
                     return -1;
                 }
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-a requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
                 argFile = &rarg[1];
             } else
-                    
-            if (strncmp(rarg, "h", 1) == 0) {
+            if (strncmp(rarg, "h", 1) == 0 || (lastCommand && strncmp(lastCommand, "h", 1) == 0)) {
                 if (argDir != nullptr) {
                     std::cerr << "-h cannot be used multiple times." << std::endl;;
                     return -1;
@@ -726,26 +849,54 @@ int main(int argc, const char * argv[]) {
                     std::cerr << "-h cannot be used with any other option." << std::endl;;
                     return -1;
                 }
-                argDir = &rarg[1];
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-h requires directory name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                argDir = rarg;
             } else
-            if (strncmp(rarg, "o", 1) == 0) {
+            if (strncmp(rarg, "o", 1) == 0 || (lastCommand && strncmp(lastCommand, "o", 1) == 0)) {
                 if (oFile != nullptr) {
                     std::cerr << "-o cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                oFile = &rarg[1];
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(oFile) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-o requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                oFile = rarg;
                 anyOption = true;
             } else
-            if (strncmp(rarg, "O", 1) == 0) {
+            if (strncmp(rarg, "O", 1) == 0 || (lastCommand && strncmp(lastCommand, "O", 1) == 0)) {
                 if (oFileCycle > 0) {
                     std::cerr << "-O cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &arg[2];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-O requires number: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-O requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 oFileCycle = atol(rarg);
                 if (oFileCycle <= 0) {
                     std::cerr << "-O requires number: " << arg << std::endl;
@@ -760,19 +911,27 @@ int main(int argc, const char * argv[]) {
                 }
                 benchmark = true;
             } else
-            if (strncmp(rarg, "v", 1) == 0) {
+            if (strncmp(rarg, "v", 1) == 0 || (lastCommand && strncmp(lastCommand, "O", 1) == 0)) {
                 if (noWork) {
                     std::cerr << "-v cannot be used multiple times." << std::endl;;
                     return -1;
                 }
                 noWork = true;
-                rarg = &arg[2];
-                if (strlen(rarg) > 0) {
-                cpersec = atol(rarg);
-                    if (cpersec <= 0) {
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
                         std::cerr << "-v requires number: " << arg << std::endl;
                         return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
                     }
+                }
+                lastCommand = nullptr;
+                cpersec = atol(rarg);
+                if (cpersec <= 0) {
+                    std::cerr << "-v requires number: " << arg << std::endl;
+                    return -1;
                 }
                 anyOption = true;
             } else {
@@ -1048,7 +1207,23 @@ int main(int argc, const char * argv[]) {
     if (outFile) {
         if (capFile) {
             // if capFile then just check if the file exists
-            FILE* check = fopen(outFile, "a");
+            // remove backup if exists
+            char *backFile = new char[strlen(outFile) + 2];
+            sprintf(backFile, "%s~", outFile);
+            // don't care about errors here
+            unlink(backFile);
+            // move old to backup
+            struct stat fex;
+            if (0 == stat(outFile, &fex)) {
+                // file exists
+                if (0 != rename(outFile, backFile)) {
+                    std::cerr << "Could not backup output file: " << outFile << std::endl;
+                    cleanup();
+                    return -1;
+                }
+            }
+            // now check opening of output file
+            FILE* check = fopen(outFile, "w");
             if (!check) {
                 std::cerr << "Could not open file for writing: " << outFile << std::endl;
                 cleanup();
@@ -2067,6 +2242,11 @@ void cleanup() {
         words = nullptr;
         wordCount = 0;
     }
+    for(std::vector<char*>::iterator it = realPaths.begin() ; it != realPaths.end(); ++it) {
+        char* rp = (*it);
+        free(rp);
+    }
+    realPaths.clear();
 }
 
 
