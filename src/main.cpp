@@ -194,7 +194,7 @@ void write_data() {
         std::cerr << "Complete line to resume is:" << std::endl;
         for(int i = 0 ; i < argNum ; i++) {
             const char* nxtArg = argVal[i];
-            if (strlen(nxtArg) >= 2 && 0 != strncmp(nxtArg, "-z", 2)) {
+            if (nxtArg && strlen(nxtArg) > 0 && 0 != strncmp(nxtArg, "-z", 2)) {
                 std::cerr << nxtArg << " ";
             }
         }
@@ -379,7 +379,7 @@ int main(int argc, const char * argv[]) {
         }
         if ((arg[0] == '-' || lastCommand) && wordCount <= 0) {
             // parse argument
-            const char* rarg = &arg[1];
+            const char* rarg = &arg[lastCommand ? 0 : 1];
             if (strncmp(rarg, "min", 3) == 0 || (lastCommand && strncmp(lastCommand, "min", 3) == 0)) {
                 if (minChar >= 0) {
                     std::cerr << "-min cannot be used multiple times." << std::endl;
@@ -867,7 +867,7 @@ int main(int argc, const char * argv[]) {
                     return -1;
                 }
                 rarg = &rarg[lastCommand ? 0 : 1];
-                if (strlen(oFile) <= 0) {
+                if (strlen(rarg) <= 0) {
                     if (lastCommand) {
                         std::cerr << "-o requires file name: " << arg << std::endl;;
                         return -1;
@@ -1915,8 +1915,11 @@ void push(char* buffer, int len) {
                 // skip 1-st argument as this is program itself
                 for(int i = 1 ; i < argNum ; i++) {
                     const char* nxtArg = argVal[i];
+                    if (!nxtArg) {
+                        continue;
+                    }
                     size_t len = strlen(nxtArg);
-                    if (len >= 2 && 0 != strncmp(nxtArg, "-z", 2)) {
+                    if (len > 0 && 0 != strncmp(nxtArg, "-z", 2)) {
                         fwrite(nxtArg, len, 1, update);
                         fwrite(" ", 1, 1, update);
                     }
