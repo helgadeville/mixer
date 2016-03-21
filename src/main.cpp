@@ -108,7 +108,6 @@ void resetCounters();
 void producePatterns(int minLen, int maxLen);
 std::vector<std::vector<int>> getPatterns(int forLen);
 std::vector<std::vector<int>> getPatterns(int minLen, int maxLen);
-std::vector<char*> realPaths;
 std::string getResumeData();
 void pattern();
 void cleanup();
@@ -466,7 +465,7 @@ int main(int argc, const char * argv[]) {
                     return -1;
                 }
                 rarg = &rarg[lastCommand ? 0 : 1];
-                if (strlen(outFile) <= 0) {
+                if (strlen(rarg) <= 0) {
                     if (lastCommand) {
                         std::cerr << "-w requires file name: " << arg << std::endl;;
                         return -1;
@@ -815,7 +814,7 @@ int main(int argc, const char * argv[]) {
                     }
                 }
                 lastCommand = nullptr;
-                pyritPath = &rarg[1];
+                pyritPath = rarg;
                 anyOption = true;
             } else
             if (strncmp(rarg, "a", 1) == 0 || (lastCommand && strncmp(lastCommand, "a", 1) == 0)) {
@@ -838,7 +837,7 @@ int main(int argc, const char * argv[]) {
                     }
                 }
                 lastCommand = nullptr;
-                argFile = &rarg[1];
+                argFile = rarg;
             } else
             if (strncmp(rarg, "h", 1) == 0 || (lastCommand && strncmp(lastCommand, "h", 1) == 0)) {
                 if (argDir != nullptr) {
@@ -2242,11 +2241,6 @@ void cleanup() {
         words = nullptr;
         wordCount = 0;
     }
-    for(std::vector<char*>::iterator it = realPaths.begin() ; it != realPaths.end(); ++it) {
-        char* rp = (*it);
-        free(rp);
-    }
-    realPaths.clear();
 }
 
 
