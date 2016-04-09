@@ -90,10 +90,12 @@ std::map<int, std::vector<std::vector<int>>> producedPatterns;
 
 const int defPyritInstances = 1;
 int pyritInstances = 0;
+bool separatedPyritOutput = false;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
 const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
+const char* pyritwSeparatedOutput = "%s -r %s -i - attack_passthrough >> %s-%d";
 FILE** poutput = nullptr;
 int* dpoutput = nullptr;
 const char* capFile = nullptr;
@@ -320,6 +322,7 @@ void usage() {
     std::cerr << "  -p<path>         - path to .cap file, this will pipe pyrit command with parameters:" << std::endl;
     std::cerr << "                       pyrit -r <path> -i - attack_passthrough" << std::endl;
     std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>" << std::endl;
+    std::cerr << "  -S               - separate pyrit outputs when -w is used. This option requires -P and -w options." << std::endl;
     std::cerr << "  -g<path>         - complete path to pyrit, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
     std::cerr << "  -h<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
@@ -824,6 +827,14 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
+            if (!lastCommand && strncmp(rarg, "S", 1) == 0) {
+                if (separatedPyritOutput) {
+                    std::cerr << "-S cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                separatedPyritOutput = true;
+                anyOption = true;
+            } else
             if ((!lastCommand && strncmp(rarg, "g", 1) == 0) || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
                 if (pyritPath != nullptr) {
                     std::cerr << "-g cannot be used multiple times." << std::endl;;
@@ -1227,34 +1238,60 @@ int main(int argc, const char * argv[]) {
             cleanup();
             return -1;
         }
+        if (!outFile && separatedPyritOutput) {
+            std::cerr << "-S cannot be used without -w." << std::endl;
+            cleanup();
+            return -1;
+        }
+    }
+    if (pyritInstances < 1) {
+        pyritInstances = defPyritInstances;
     }
     // check and prepare output
     if (outFile) {
         if (capFile) {
-            // if capFile then just check if the file exists
-            // remove backup if exists
-            char *backFile = new char[strlen(outFile) + 2];
-            sprintf(backFile, "%s~", outFile);
-            // don't care about errors here
-            unlink(backFile);
-            // move old to backup
-            struct stat fex;
-            if (0 == stat(outFile, &fex)) {
-                // file exists
-                if (0 != rename(outFile, backFile)) {
-                    std::cerr << "Could not backup output file: " << outFile << std::endl;
-                    cleanup();
-                    return -1;
-                }
-            }
-            // now check opening of output file
-            FILE* check = fopen(outFile, "w");
-            if (!check) {
-                std::cerr << "Could not open file for writing: " << outFile << std::endl;
+            // check conflicts
+            if (pyritInstances < 1 && separatedPyritOutput) {
+                std::cerr << "Cannot use separated pyrit outputs with one pyrit instance (-S and -p)" << std::endl;
                 cleanup();
                 return -1;
             }
-            fclose(check);
+            // if capFile then just check if the file exists
+            // remove backup if exists
+            for(int i = 0 ; i < pyritInstances ; i++) {
+                char* newOutFile = new char[1024];
+                char *backFile = new char[1024];
+                if (separatedPyritOutput) {
+                    sprintf(newOutFile, "%s-%d", outFile, i+1);
+                    sprintf(backFile, "%s-%d~", outFile, i+1);
+                } else {
+                    sprintf(newOutFile, "%s", outFile);
+                    sprintf(backFile, "%s~", outFile);
+                }
+                // don't care about errors here
+                unlink(backFile);
+                // move old to backup
+                struct stat fex;
+                if (0 == stat(newOutFile, &fex)) {
+                    // file exists
+                    if (0 != rename(newOutFile, backFile)) {
+                        std::cerr << "Could not backup output file: " << newOutFile << std::endl;
+                        cleanup();
+                        return -1;
+                    }
+                }
+                delete[] backFile;
+                // now check opening of output file
+                FILE* check = fopen(newOutFile, "w");
+                if (!check) {
+                    std::cerr << "Could not open file for writing: " << newOutFile << std::endl;
+                    delete[] newOutFile;
+                    cleanup();
+                    return -1;
+                }
+                fclose(check);
+                delete[] newOutFile;
+            }
         } else {
             ofoutput.open(outFile);
             if (!ofoutput.is_open()) {
@@ -1473,18 +1510,17 @@ int main(int argc, const char * argv[]) {
         if (!pyritPath) {
             pyritPath = defPyritPath;
         }
-        if (pyritInstances < 1) {
-            pyritInstances = defPyritInstances;
-        }
-        if (outFile) {
+        if (outFile && !separatedPyritOutput) {
             sprintf(buffer, pyritwOutput, pyritPath, capFile, outFile);
         } else {
             sprintf(buffer, pyrit, pyritPath, capFile);
         }
-        
         poutput = new FILE*[pyritInstances];
         dpoutput = new int[pyritInstances];
         for(int i = 0 ; i < pyritInstances ; i++) {
+            if (capFile && separatedPyritOutput) {
+                sprintf(buffer, pyritwSeparatedOutput, pyritPath, capFile, outFile, i+1);
+            }
             poutput[i] = popen(buffer, "w");
             if (!poutput[i]) {
                 std::cerr << "Could not open pyrit with pipe." << std::endl;
