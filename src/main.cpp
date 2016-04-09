@@ -88,12 +88,14 @@ unsigned long long bytesWritten = 0;
 
 std::map<int, std::vector<std::vector<int>>> producedPatterns;
 
+const int defPyritInstances = 1;
+int pyritInstances = 0;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
 const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
-FILE* poutput = nullptr;
-int dpoutput = 0;
+FILE** poutput = nullptr;
+int* dpoutput = nullptr;
 const char* capFile = nullptr;
 
 const char* argDir = nullptr;
@@ -279,7 +281,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.5.3)" << std::endl;
+    std::cerr << "    (version 0.5.4)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -317,6 +319,7 @@ void usage() {
     std::cerr << "  -v[number]       - number specifies operations per second; this option will give additional" << std::endl;
     std::cerr << "  -p<path>         - path to .cap file, this will pipe pyrit command with parameters:" << std::endl;
     std::cerr << "                       pyrit -r <path> -i - attack_passthrough" << std::endl;
+    std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>" << std::endl;
     std::cerr << "  -g<path>         - complete path to pyrit, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
     std::cerr << "  -h<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
@@ -796,6 +799,29 @@ int main(int argc, const char * argv[]) {
                 }
                 lastCommand = nullptr;
                 capFile = rarg;
+                anyOption = true;
+            } else
+            if ((!lastCommand && strncmp(rarg, "P", 1) == 0) || (lastCommand && strncmp(lastCommand, "P", 1) == 0)) {
+                if (pyritInstances > 0) {
+                    std::cerr << "-P cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-P requires number: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                pyritInstances = atoi(rarg);
+                if (pyritInstances <= 0) {
+                    std::cerr << "-P requires number: " << arg << std::endl;
+                    return -1;
+                }
                 anyOption = true;
             } else
             if ((!lastCommand && strncmp(rarg, "g", 1) == 0) || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
@@ -1447,19 +1473,36 @@ int main(int argc, const char * argv[]) {
         if (!pyritPath) {
             pyritPath = defPyritPath;
         }
+        if (pyritInstances < 1) {
+            pyritInstances = defPyritInstances;
+        }
         if (outFile) {
             sprintf(buffer, pyritwOutput, pyritPath, capFile, outFile);
         } else {
             sprintf(buffer, pyrit, pyritPath, capFile);
         }
-        poutput = popen(buffer, "w");
-        if (!poutput) {
-            std::cerr << "Could not open pyrit with pipe." << std::endl;
+        
+        poutput = new FILE*[pyritInstances];
+        dpoutput = new int[pyritInstances];
+        for(int i = 0 ; i < pyritInstances ; i++) {
+            poutput[i] = popen(buffer, "w");
+            if (!poutput[i]) {
+                std::cerr << "Could not open pyrit with pipe." << std::endl;
+                cleanup();
+                return -1;
+            }
+            dpoutput[i] = fileno(poutput[i]);
+            // TO CONSIDER
+            //if (pyritInstances > 1) {
+                //fcntl(dpoutput, F_SETFL, O_NONBLOCK);
+            //}
+        }
+    } else {
+        if (pyritInstances > 0) {
+            std::cerr << "Cannot use -P with no -p set." << std::endl;
             cleanup();
             return -1;
         }
-        dpoutput = fileno(poutput);
-        //fcntl(dpoutput, F_SETFL, O_NONBLOCK);
     }
     if  (resumeAt > 0) {
         std::cerr << "Resuming at line: " << resumeAt << ", please wait..." << std::endl;
@@ -1898,7 +1941,9 @@ void push(char* buffer, int len) {
     if (resumeAt <= linesWritten) {
         bytesWritten += len;
         if (poutput) {
-            if (write(dpoutput, buffer, len) < 0 || write(dpoutput, "\n", 1) < 0) {
+            // calculate number of pipe for output
+            int pipeNo = linesWritten % pyritInstances;
+            if (write(dpoutput[pipeNo], buffer, len) < 0 || write(dpoutput[pipeNo], "\n", 1) < 0) {
                 std::cerr << "Child input terminated. Pipe closed." << std::endl;
                 quit = true;
             }
@@ -2195,8 +2240,18 @@ void pattern() {
 
 void cleanup() {
     if (poutput) {
-        pclose(poutput);
+        for(int i = 0 ; i < pyritInstances ; i++) {
+            if (poutput[i]) {
+                fclose(poutput[i]);
+                poutput[i] = nullptr;
+            }
+        }
+        delete[] poutput;
         poutput = nullptr;
+    }
+    if (dpoutput) {
+        delete[] dpoutput;
+        dpoutput = nullptr;
     }
     if (outFile && output && ofoutput.is_open()) {
         ofoutput.close();
