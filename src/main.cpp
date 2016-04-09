@@ -2278,7 +2278,7 @@ void cleanup() {
     if (poutput) {
         for(int i = 0 ; i < pyritInstances ; i++) {
             if (poutput[i]) {
-                fclose(poutput[i]);
+                pclose(poutput[i]);
                 poutput[i] = nullptr;
             }
         }
