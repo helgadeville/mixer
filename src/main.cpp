@@ -1583,6 +1583,11 @@ int main(int argc, const char * argv[]) {
             cleanup();
             return -1;
         }
+        if (usePyritWriteOption) {
+            std::cerr << "Cannot use -W with no -p set." << std::endl;
+            cleanup();
+            return -1;
+        }
     }
     if  (resumeAt > 0) {
         std::cerr << "Resuming at line: " << resumeAt << ", please wait..." << std::endl;
