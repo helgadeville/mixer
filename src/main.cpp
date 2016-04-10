@@ -285,7 +285,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.5.4)" << std::endl;
+    std::cerr << "    (version 0.5.5)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -1264,10 +1264,6 @@ int main(int argc, const char * argv[]) {
     if (pyritInstances < 1) {
         pyritInstances = defPyritInstances;
     }
-    // blocking mode true when instances == 1
-    if (pyritInstances < 2) {
-        useBlocking = true;
-    }
     // check and prepare output
     if (outFile) {
         if (capFile) {
@@ -1549,11 +1545,11 @@ int main(int argc, const char * argv[]) {
                 return -1;
             }
             dpoutput[i] = fileno(poutput[i]);
-            // TO CONSIDER
             if (!useBlocking) {
                 fcntl(dpoutput[i], F_SETFL, O_NONBLOCK);
             }
         }
+        std::cerr << "Setting " << (useBlocking ? "" : "non-") << "blocking mode." << std::endl;
     } else {
         if (pyritInstances > 0) {
             std::cerr << "Cannot use -P with no -p set." << std::endl;
@@ -1994,6 +1990,8 @@ void premix() {
     }
 }
 
+int lastWriteIndex = -1;
+
 void push(char* buffer, int len) {
     if (resumeAt <= linesWritten) {
         bytesWritten += len;
@@ -2019,10 +2017,13 @@ void push(char* buffer, int len) {
                     std::cerr << "Child input terminated. Pipe closed." << std::endl;
                     quit = true;
                 } else {
+                    int selectorIndex = lastWriteIndex;
                     for(int i = 0 ; i < pyritInstances ; i++) {
-                        int fildes = dpoutput[i];
+                        selectorIndex = ++selectorIndex % pyritInstances;
+                        int fildes = dpoutput[selectorIndex];
                         if (FD_ISSET(fildes, &writefds)) {
                             toWrite = fildes;
+                            lastWriteIndex = selectorIndex;
                             break;
                         }
                     }
