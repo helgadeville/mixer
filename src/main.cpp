@@ -93,11 +93,14 @@ const int defPyritInstances = 1;
 int pyritInstances = 0;
 bool separatedPyritOutput = false;
 bool useBlocking = false;
+bool usePyritWriteOption = false;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
 const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
 const char* pyritwSeparatedOutput = "%s -r %s -i - attack_passthrough >> %s-%d";
+const char* pyritwOutputToFile = "%s -r %s -i - attack_passthrough -o %s";
+const char* pyritwSeparatedOutputToFile = "%s -r %s -i - attack_passthrough -o %s-%d";
 FILE** poutput = nullptr;
 int* dpoutput = nullptr;
 const char* capFile = nullptr;
@@ -299,7 +302,8 @@ void usage() {
     std::cerr << "  -max<number>     - maximum number of characters (recommended to use this)" << std::endl;
     std::cerr << "  -s<charset>      - use provided charset" << std::endl;
     std::cerr << "  -f<path>         - read basic wordset from file instead of stdin" << std::endl;
-    std::cerr << "  -w<path>         - write generated wordset to file instead of stdout, cannot be used with -p" << std::endl;
+    std::cerr << "  -w<path>         - write generated wordset to file instead of stdout, if used with -p, then pyrit output will be written to file" << std::endl;
+    std::cerr << "  -W<path>         - same as -w, except it will use write option of pyrit instead of pyrit's stdout redirection to file; must be used with -p" << std::endl;
     std::cerr << "  -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)" << std::endl;
     std::cerr << "  -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)" << std::endl;
     std::cerr << "  -l<number>       - minimum number of mixed words (recommended to use this)" << std::endl;
@@ -470,13 +474,13 @@ int main(int argc, const char * argv[]) {
             } else
             if ((!lastCommand && strncmp(rarg, "w", 1) == 0) || (lastCommand && strncmp(lastCommand, "w", 1) == 0)) {
                 if (outFile != nullptr) {
-                    std::cerr << "-w cannot be used multiple times." << std::endl;;
+                    std::cerr << "-w/-W cannot be used multiple times." << std::endl;;
                     return -1;
                 }
                 rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
                     if (lastCommand) {
-                        std::cerr << "-w requires file name: " << arg << std::endl;;
+                        std::cerr << "-w/-W requires file name: " << arg << std::endl;;
                         return -1;
                     } else {
                         lastCommand = &arg[1];
@@ -485,8 +489,31 @@ int main(int argc, const char * argv[]) {
                 }
                 lastCommand = nullptr;
                 outFile = rarg;
+                usePyritWriteOption = false;
                 anyOption = true;
             } else
+                
+            if ((!lastCommand && strncmp(rarg, "W", 1) == 0) || (lastCommand && strncmp(lastCommand, "W", 1) == 0)) {
+                if (outFile != nullptr) {
+                    std::cerr << "-W/-w cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-W/-w requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                outFile = rarg;
+                usePyritWriteOption = true;
+                anyOption = true;
+            } else
+                
             if (!lastCommand && strncmp(rarg, "n", 1) == 0) {
                 if (norepeat) {
                     std::cerr << "-n cannot be used multiple times." << std::endl;;
@@ -1528,7 +1555,7 @@ int main(int argc, const char * argv[]) {
             pyritPath = defPyritPath;
         }
         if (outFile && !separatedPyritOutput) {
-            sprintf(buffer, pyritwOutput, pyritPath, capFile, outFile);
+            sprintf(buffer, usePyritWriteOption ? pyritwOutputToFile : pyritwOutput, pyritPath, capFile, outFile);
         } else {
             sprintf(buffer, pyrit, pyritPath, capFile);
         }
@@ -1536,7 +1563,7 @@ int main(int argc, const char * argv[]) {
         dpoutput = new int[pyritInstances];
         for(int i = 0 ; i < pyritInstances ; i++) {
             if (capFile && separatedPyritOutput) {
-                sprintf(buffer, pyritwSeparatedOutput, pyritPath, capFile, outFile, i+1);
+                sprintf(buffer, usePyritWriteOption ? pyritwSeparatedOutputToFile : pyritwSeparatedOutput, pyritPath, capFile, outFile, i+1);
             }
             poutput[i] = popen(buffer, "w");
             if (!poutput[i]) {
@@ -1991,6 +2018,8 @@ void premix() {
 }
 
 int lastWriteIndex = -1;
+unsigned long lastLinesWritten = 0;
+time_t lastScreenUpdate = 0;
 
 void push(char* buffer, int len) {
     if (resumeAt <= linesWritten) {
@@ -2064,6 +2093,17 @@ void push(char* buffer, int len) {
         }
     }
     linesWritten++;
+    // screen update - once per 1000 lines or per sec
+    if (linesWritten % 1000 == 0) {
+        time_t currentTime = time(nullptr);
+        if (currentTime > lastScreenUpdate) {
+            lastScreenUpdate = currentTime;
+            unsigned long meanPerSec = linesWritten - lastLinesWritten;
+            lastLinesWritten = linesWritten;
+            std::cerr << "Total: " << linesWritten << " PMKs, stream: " << meanPerSec << " PMKs/sec (per 3 sec)                \r";
+        }
+    }
+    // now general update
     if (show) {
         show = false;
         char* toShow = new char[len + 1];
