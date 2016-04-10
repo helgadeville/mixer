@@ -2019,6 +2019,7 @@ void premix() {
 
 int lastWriteIndex = -1;
 unsigned long lastLinesWritten = 0;
+unsigned long lastMeanPerSec = 0;
 time_t lastScreenUpdate = 0;
 
 void push(char* buffer, int len) {
@@ -2099,8 +2100,9 @@ void push(char* buffer, int len) {
         if (currentTime > lastScreenUpdate) {
             lastScreenUpdate = currentTime;
             unsigned long meanPerSec = linesWritten - lastLinesWritten;
+            lastMeanPerSec = (lastMeanPerSec + meanPerSec) / 2;
             lastLinesWritten = linesWritten;
-            std::cerr << "Total: " << linesWritten << " PMKs, stream: " << meanPerSec << " PMKs/sec (per 3 sec)                \r";
+            std::cerr << "Total: " << linesWritten << " PMKs, stream: " << lastMeanPerSec << " PMKs/sec               \r";
         }
     }
     // now general update
