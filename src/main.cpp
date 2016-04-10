@@ -22,6 +22,7 @@
 #include <poll.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 using namespace std;
 
@@ -91,6 +92,7 @@ std::map<int, std::vector<std::vector<int>>> producedPatterns;
 const int defPyritInstances = 1;
 int pyritInstances = 0;
 bool separatedPyritOutput = false;
+bool useBlocking = false;
 const char* defPyritPath = "pyrit";
 const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
@@ -323,6 +325,7 @@ void usage() {
     std::cerr << "                       pyrit -r <path> -i - attack_passthrough" << std::endl;
     std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>" << std::endl;
     std::cerr << "  -S               - separate pyrit outputs when -w is used. This option requires -P and -w options." << std::endl;
+    std::cerr << "  -B               - Use blocking output to pyrit. This option requires -p and -P options." << std::endl;
     std::cerr << "  -g<path>         - complete path to pyrit, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
     std::cerr << "  -h<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
@@ -835,6 +838,14 @@ int main(int argc, const char * argv[]) {
                 separatedPyritOutput = true;
                 anyOption = true;
             } else
+            if (!lastCommand && strncmp(rarg, "B", 1) == 0) {
+                if (useBlocking) {
+                    std::cerr << "-B cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                useBlocking = true;
+                anyOption = true;
+            } else
             if ((!lastCommand && strncmp(rarg, "g", 1) == 0) || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
                 if (pyritPath != nullptr) {
                     std::cerr << "-g cannot be used multiple times." << std::endl;;
@@ -1243,9 +1254,19 @@ int main(int argc, const char * argv[]) {
             cleanup();
             return -1;
         }
+    } else {
+        if (useBlocking) {
+            std::cerr << "-B cannot be used without -p." << std::endl;
+            cleanup();
+            return -1;
+        }
     }
     if (pyritInstances < 1) {
         pyritInstances = defPyritInstances;
+    }
+    // blocking mode true when instances == 1
+    if (pyritInstances < 2) {
+        useBlocking = true;
     }
     // check and prepare output
     if (outFile) {
@@ -1529,9 +1550,9 @@ int main(int argc, const char * argv[]) {
             }
             dpoutput[i] = fileno(poutput[i]);
             // TO CONSIDER
-            //if (pyritInstances > 1) {
-                //fcntl(dpoutput, F_SETFL, O_NONBLOCK);
-            //}
+            if (!useBlocking) {
+                fcntl(dpoutput[i], F_SETFL, O_NONBLOCK);
+            }
         }
     } else {
         if (pyritInstances > 0) {
@@ -1978,8 +1999,36 @@ void push(char* buffer, int len) {
         bytesWritten += len;
         if (poutput) {
             // calculate number of pipe for output
-            int pipeNo = linesWritten % pyritInstances;
-            if (write(dpoutput[pipeNo], buffer, len) < 0 || write(dpoutput[pipeNo], "\n", 1) < 0) {
+            int toWrite = -1;
+            if (useBlocking) {
+                int pipeNo = linesWritten % pyritInstances;
+                toWrite = dpoutput[pipeNo];
+            } else {
+                fd_set writefds;
+                FD_ZERO(&writefds);
+                int max_sd = 0;
+                for(int i = 0 ; i < pyritInstances ; i++) {
+                    int fildes = dpoutput[i];
+                    FD_SET(fildes, &writefds);
+                    if (fildes > max_sd) {
+                        max_sd = fildes;
+                    }
+                }
+                int ready = select(max_sd + 1, nullptr, &writefds, nullptr, nullptr);
+                if (ready < 0) {
+                    std::cerr << "Child input terminated. Pipe closed." << std::endl;
+                    quit = true;
+                } else {
+                    for(int i = 0 ; i < pyritInstances ; i++) {
+                        int fildes = dpoutput[i];
+                        if (FD_ISSET(fildes, &writefds)) {
+                            toWrite = fildes;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (write(toWrite, buffer, len) < 0 || write(toWrite, "\n", 1) < 0) {
                 std::cerr << "Child input terminated. Pipe closed." << std::endl;
                 quit = true;
             }
