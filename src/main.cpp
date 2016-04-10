@@ -2019,7 +2019,7 @@ void push(char* buffer, int len) {
                 } else {
                     int selectorIndex = lastWriteIndex;
                     for(int i = 0 ; i < pyritInstances ; i++) {
-                        selectorIndex = (++selectorIndex) % pyritInstances;
+                        selectorIndex = (selectorIndex + 1) % pyritInstances;
                         int fildes = dpoutput[selectorIndex];
                         if (FD_ISSET(fildes, &writefds)) {
                             toWrite = fildes;
