@@ -2107,7 +2107,11 @@ void push(char* buffer, int len) {
             unsigned long meanPerSec = linesWritten - lastLinesWritten;
             lastMeanPerSec = (lastMeanPerSec + meanPerSec) / 2;
             lastLinesWritten = linesWritten;
-            std::cerr << "Total: " << linesWritten << " PMKs, stream: " << lastMeanPerSec << " PMKs/sec               \r";
+            char* current = new char[len + 1];
+            memcpy(current, buffer, len);
+            current[len] = 0;
+            std::cerr << " Total: " << linesWritten << " PMKs, stream: " << lastMeanPerSec << " PMKs/sec, current: " << current << "               \r";
+            delete[] current;
         }
     }
     // now general update
