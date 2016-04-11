@@ -200,14 +200,18 @@ void write_data() {
     if (!normalFinish && !benchmark) {
         std::string ret = getResumeData();
         std::cerr << "Fast resume data (use -z<data> for resume): " << ret.c_str() << std::endl;
-        std::cerr << "Complete line to resume is:" << std::endl;
-        for(int i = 0 ; i < argNum ; i++) {
+        std::cerr << "Complete line to resume is:" << std::endl << argVal[0] << " -z" << ret.c_str() << " ";
+        bool ignoreNext = false;
+        for(int i = 1 ; i < argNum ; i++) {
             const char* nxtArg = argVal[i];
-            if (nxtArg && strlen(nxtArg) > 0 && 0 != strncmp(nxtArg, "-z", 2)) {
+            size_t len = strlen(nxtArg);
+            bool isZ = strncmp(nxtArg, "-z", 2) == 0;
+            if (!isZ && !ignoreNext) {
                 std::cerr << nxtArg << " ";
             }
+            ignoreNext = isZ && len == 2;
         }
-        std::cerr << "-z" << ret.c_str() << std::endl << std::endl;
+        std::cerr << std::endl << std::endl;
     }
     if (totalTimeSec > 0) {
         linesWritten /= totalTimeSec;
@@ -288,7 +292,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.5.6)" << std::endl;
+    std::cerr << "    (version 0.5.7)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -322,7 +326,6 @@ void usage() {
     std::cerr << "  -e               - eliminate repeating words, this may take a very long time" << std::endl;
     std::cerr << "  -x<number>       - resume at specific line number, cannot be used with -z." << std::endl;
     std::cerr << "  -z<data>         - resume at specific program state, fast, but requires special data format, excludes -x." << std::endl;
-    std::cerr << "                     NOTE: -z data cannot be separated by space from -z, e.g. -z10:01 is OK" << std::endl;
     std::cerr << "  -q<number>       - quit at specific line number" << std::endl;
     std::cerr << "  -b               - run benchmark only for 10 seconds, this excludes all other options" << std::endl;
     std::cerr << "  -v[number]       - number specifies operations per second; this option will give additional" << std::endl;
@@ -774,16 +777,22 @@ int main(int argc, const char * argv[]) {
                 }
                 anyOption = true;
             } else
-            if (!lastCommand && strncmp(rarg, "z", 1) == 0) {
+            if ((!lastCommand && strncmp(rarg, "z", 1) == 0) || (lastCommand && strncmp(lastCommand, "z", 1) == 0)) {
                 if (resumeData != nullptr) {
                     std::cerr << "-z cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                rarg = &rarg[1];
+                rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
-                    std::cerr << "-z requires data, cannot be passed separate: " << arg << std::endl;
-                    return -1;
+                    if (lastCommand) {
+                        std::cerr << "-z requires data: " << arg << std::endl;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
                 }
+                lastCommand = nullptr;
                 resumeData = rarg;
                 anyOption = true;
             } else
@@ -2069,23 +2078,23 @@ void push(char* buffer, int len) {
         }
         if (oFile && linesWritten % oFileCycle == 0) {
             // time to write update
-            FILE* update = fopen(oFile,"w");
+            FILE* update = fopen(oFile, "w");
             if (update) {
                 // get -z data
                 std::string ret = getResumeData();
                 // resume at beginning, with space, since we expect arguments
                 fprintf(update, "-z%s ", ret.c_str());
                 // skip 1-st argument as this is program itself
+                bool ignoreNext = false;
                 for(int i = 1 ; i < argNum ; i++) {
                     const char* nxtArg = argVal[i];
-                    if (!nxtArg) {
-                        continue;
-                    }
                     size_t len = strlen(nxtArg);
-                    if (len > 0 && 0 != strncmp(nxtArg, "-z", 2)) {
+                    bool isZ = strncmp(nxtArg, "-z", 2) == 0;
+                    if (!isZ && !ignoreNext) {
                         fwrite(nxtArg, len, 1, update);
                         fwrite(" ", 1, 1, update);
                     }
+                    ignoreNext = isZ && len == 2;
                 }
                 fclose(update);
             } else {
@@ -2120,11 +2129,15 @@ void push(char* buffer, int len) {
         std::string ret = getResumeData();
         std::cerr << "Fast resume data (use -z<data> for resume): " << ret.c_str() << std::endl;
         std::cerr << "Complete line to resume is:" << std::endl << argVal[0] << " -z" << ret.c_str() << " ";
+        bool ignoreNext = false;
         for(int i = 1 ; i < argNum ; i++) {
             const char* nxtArg = argVal[i];
-            if (strlen(nxtArg) > 2 && 0 != strncmp(nxtArg, "-z", 2)) {
+            size_t len = strlen(nxtArg);
+            bool isZ = strncmp(nxtArg, "-z", 2) == 0;
+            if (!isZ && !ignoreNext) {
                 std::cerr << nxtArg << " ";
             }
+            ignoreNext = isZ && len == 2;
         }
         std::cerr << std::endl << std::endl;
     }
@@ -2236,7 +2249,7 @@ void pattern() {
         int psize = (int)pattern.size();
         // remove this log (if necessary)
         unsigned long long wcount = 1;
-        std::cerr << "Processing pattern: [";
+        std::cerr << std::endl << "Processing pattern: [";
         for(int i = 0 ; i < psize ; i++) {
             int tlen = pattern[i];
             int* wordsToUse = wordsByLength[tlen];
