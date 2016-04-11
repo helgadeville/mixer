@@ -99,8 +99,8 @@ const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
 const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
 const char* pyritwSeparatedOutput = "%s -r %s -i - attack_passthrough >> %s-%d";
-const char* pyritwOutputToFile = "%s -r %s -i - -o %s attack_passthrough";
-const char* pyritwSeparatedOutputToFile = "%s -r %s -i - -o %s-%d attack_passthrough";
+const char* pyritwOutputToFile = "%s -r %s -i - -o %s attack_passthrough >/dev/null 2>&1";
+const char* pyritwSeparatedOutputToFile = "%s -r %s -i - -o %s-%d attack_passthrough >/dev/null 2>&1";
 FILE** poutput = nullptr;
 int* dpoutput = nullptr;
 const char* capFile = nullptr;
@@ -2110,7 +2110,7 @@ void push(char* buffer, int len) {
             char* current = new char[len + 1];
             memcpy(current, buffer, len);
             current[len] = 0;
-            std::cerr << " Total: " << linesWritten << " PMKs, stream: " << lastMeanPerSec << " PMKs/sec, current: " << current << "               \r";
+            std::cerr << "\33[2K\rTotal: " << linesWritten << " PMKs, stream: " << lastMeanPerSec << " PMKs/sec, current: " << current;
             delete[] current;
         }
     }
