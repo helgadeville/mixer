@@ -1712,25 +1712,8 @@ int main(int argc, const char * argv[]) {
         cleanup();
         return -1;
     }
-    // start mixing and writing
-    just_print();
-    if (!noWork) {
-        // start time counter
-        startTime = (long)time(nullptr);
-        // do mixing
-        for(int c = startChar ; c <= cMaxChar ; c++) {
-            minChar = c;
-            maxChar = c;
-            pattern();
-            if (quit) {
-                break;
-            } else {
-                resetCounters();
-                resumeAtPattern = 0;
-            }
-        }
-    }
-    write_data();    // check word list
+    // final checks
+    // ** THIS WAS COPIED FROM BELOW
     if (wordCount < 1 || (wordCount < 2 && !replaceFirst && !replaceRandom && !replaceList)) {
         std::cerr << "Not enough words to mix." << std::endl;
         cleanup();
@@ -1760,6 +1743,28 @@ int main(int argc, const char * argv[]) {
         cleanup();
         return -1;
     }
+    // ***** DOWN TO HERE
+    // start mixing and writing
+    just_print();
+    if (!noWork) {
+        // start time counter
+        startTime = (long)time(nullptr);
+        // do mixing
+        for(int c = startChar ; c <= cMaxChar ; c++) {
+            minChar = c;
+            maxChar = c;
+            pattern();
+            if (quit) {
+                break;
+            } else {
+                resetCounters();
+                resumeAtPattern = 0;
+            }
+        }
+    }
+    // write final data stats
+    write_data();
+    // cleanup & exit
     cleanup();
     // exit
     if (!quit) {
