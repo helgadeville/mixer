@@ -23,6 +23,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <poll.h>
 
 using namespace std;
 
@@ -103,6 +104,8 @@ const char* pyritwOutputToFile = "%s -r %s -i - -o %s attack_passthrough >/dev/n
 const char* pyritwSeparatedOutputToFile = "%s -r %s -i - -o %s-%d attack_passthrough >/dev/null 2>&1";
 FILE** poutput = nullptr;
 int* dpoutput = nullptr;
+struct pollfd* dpolloutput = nullptr;
+int dpollcount = 0;
 const char* capFile = nullptr;
 
 const char* argDir = nullptr;
@@ -1565,6 +1568,8 @@ int main(int argc, const char * argv[]) {
         }
         poutput = new FILE*[pyritInstances];
         dpoutput = new int[pyritInstances];
+        dpolloutput = new struct pollfd[pyritInstances];
+        dpollcount = 0;
         for(int i = 0 ; i < pyritInstances ; i++) {
             if (capFile && separatedPyritOutput) {
                 sprintf(buffer, usePyritWriteOption ? pyritwSeparatedOutputToFile : pyritwSeparatedOutput, pyritPath, capFile, outFile, i+1);
@@ -1578,6 +1583,8 @@ int main(int argc, const char * argv[]) {
             dpoutput[i] = fileno(poutput[i]);
             if (!useBlocking) {
                 fcntl(dpoutput[i], F_SETFL, O_NONBLOCK);
+                dpolloutput[i].fd = dpoutput[i];
+                dpolloutput[i].events = POLLOUT;
             }
         }
         std::cerr << "Setting " << (useBlocking ? "" : "non-") << "blocking mode." << std::endl;
@@ -2046,28 +2053,26 @@ void push(char* buffer, int len) {
                 int pipeNo = linesWritten % pyritInstances;
                 toWrite = dpoutput[pipeNo];
             } else {
-                fd_set writefds;
-                FD_ZERO(&writefds);
-                int max_sd = 0;
-                for(int i = 0 ; i < pyritInstances ; i++) {
-                    int fildes = dpoutput[i];
-                    FD_SET(fildes, &writefds);
-                    if (fildes > max_sd) {
-                        max_sd = fildes;
-                    }
+                // if more descriptors were ready, reuse them
+                if (dpollcount <= 0) {
+                    // -1 is for timeout infinite
+                    dpollcount = poll(dpolloutput, 2, -1);
                 }
-                int ready = select(max_sd + 1, nullptr, &writefds, nullptr, nullptr);
-                if (ready < 0) {
+                // Check if any descriptors ready
+                if (dpollcount == -1 || dpollcount == 0) {
+                    // report error and abort, ==0 should never happen
                     std::cerr << "Child input terminated. Pipe closed." << std::endl;
                     quit = true;
                 } else {
+                    // now we have number of descriptors ready
                     int selectorIndex = lastWriteIndex;
                     for(int i = 0 ; i < pyritInstances ; i++) {
                         selectorIndex = (selectorIndex + 1) % pyritInstances;
-                        int fildes = dpoutput[selectorIndex];
-                        if (FD_ISSET(fildes, &writefds)) {
-                            toWrite = fildes;
+                        if (dpolloutput[selectorIndex].revents & POLLOUT) {
+                            dpolloutput[selectorIndex].revents = 0;
+                            toWrite = dpoutput[selectorIndex];
                             lastWriteIndex = selectorIndex;
+                            dpollcount--;
                             break;
                         }
                     }
@@ -2399,6 +2404,10 @@ void cleanup() {
         }
         delete[] poutput;
         poutput = nullptr;
+    }
+    if (dpolloutput) {
+        delete[] dpolloutput;
+        dpolloutput = nullptr;
     }
     if (dpoutput) {
         delete[] dpoutput;
