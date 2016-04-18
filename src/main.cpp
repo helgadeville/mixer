@@ -2078,7 +2078,7 @@ void push(char* buffer, int len) {
                     }
                 }
             }
-            if (write(toWrite, buffer, len) < 0 || write(toWrite, "\n", 1) < 0) {
+            if (!quit && (write(toWrite, buffer, len) < 0 || write(toWrite, "\n", 1) < 0)) {
                 std::cerr << "Child input terminated. Pipe closed." << std::endl;
                 quit = true;
             }
