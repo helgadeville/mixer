@@ -1295,7 +1295,7 @@ int main(int argc, const char * argv[]) {
             return -1;
         }
     }
-    if (pyritInstances < 1) {
+    if (capFile && pyritInstances < 1) {
         pyritInstances = defPyritInstances;
     }
     // check and prepare output
