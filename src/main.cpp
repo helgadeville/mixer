@@ -2056,7 +2056,7 @@ void push(char* buffer, int len) {
                 // if more descriptors were ready, reuse them
                 if (dpollcount <= 0) {
                     // -1 is for timeout infinite
-                    dpollcount = poll(dpolloutput, 2, -1);
+                    dpollcount = poll(dpolloutput, pyritInstances, -1);
                 }
                 // Check if any descriptors ready
                 if (dpollcount == -1 || dpollcount == 0) {
