@@ -94,6 +94,7 @@ const int defChildInstances = 1;
 int childInstances = 0;
 bool separatedChildOutput = false;
 bool useBlocking = false;
+bool forceNonBlocking = false;
 bool useChildWriteOption = false;
 const char* providedPath = nullptr;
 
@@ -305,7 +306,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.6.1)" << std::endl;
+    std::cerr << "    (version 0.6.2)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -351,8 +352,10 @@ void usage() {
     std::cerr << "                       oclHashcat -m 2500 --workload-profile=3 <path>" << std::endl;
     std::cerr << "  -S               - separate pyrit outputs when -w is used. This option requires -P and -w options." << std::endl;
     std::cerr << "                     Cannot be used with -h" << std::endl;
-    std::cerr << "  -B               - Use blocking output to pyrit/oclHashcat. This option requires -p or -h option." << std::endl;
-    std::cerr << "                     With -h, it is on by default." << std::endl;
+    std::cerr << "  -B               - Use blocking output to pyrit/oclHashcat. This option requires -p and -P set to > 1." << std::endl;
+    std::cerr << "                     When there is only 1 child instance, this will be on by default. Cannot be used with -N." << std::endl;
+    std::cerr << "  -N               - Force non-blocking output to pyrit/oclHashcat. This option requires -p or -h and -P set to 1 (or default)." << std::endl;
+    std::cerr << "                     Cannot be used with -B." << std::endl;
     std::cerr << "  -g<path>         - complete path to pyrit/oclHashcat, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
     std::cerr << "  -H<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
@@ -915,6 +918,14 @@ int main(int argc, const char * argv[]) {
                 useBlocking = true;
                 anyOption = true;
             } else
+            if (!lastCommand && strncmp(rarg, "N", 1) == 0) {
+                if (forceNonBlocking) {
+                    std::cerr << "-N cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                forceNonBlocking = true;
+                anyOption = true;
+            } else
             if ((!lastCommand && strncmp(rarg, "g", 1) == 0) || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
                 if (providedPath != nullptr) {
                     std::cerr << "-g cannot be used multiple times." << std::endl;;
@@ -1338,13 +1349,32 @@ int main(int argc, const char * argv[]) {
         }
     } else {
         if (useBlocking) {
-            std::cerr << "-B cannot be used without -p or -h." << std::endl;
+            std::cerr << "-B cannot be used without -p." << std::endl;
             cleanup();
             return -1;
         }
     }
     if (capFile && childInstances < 1) {
         childInstances = defChildInstances;
+    }
+    if (useBlocking && forceNonBlocking) {
+        std::cerr << "-B cannot be used with -N." << std::endl;
+        cleanup();
+        return -1;
+    }
+    if (childInstances > 1) {
+        if (forceNonBlocking) {
+            std::cerr << "-N cannot be used when there are " << childInstances << " child instances." << std::endl;
+            cleanup();
+            return -1;
+        }
+    } else { // 1 child
+        if (useBlocking) {
+            std::cerr << "-B is on by default for 1 child instance." << std::endl;
+        } else
+        if (!forceNonBlocking) {
+            useBlocking = true;
+        }
     }
     // check and prepare output
     if (outFile) {
