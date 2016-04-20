@@ -305,7 +305,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.6)" << std::endl;
+    std::cerr << "    (version 0.6.1)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -342,20 +342,20 @@ void usage() {
     std::cerr << "  -q<number>       - quit at specific line number" << std::endl;
     std::cerr << "  -b               - run benchmark only for 10 seconds, this excludes all other options" << std::endl;
     std::cerr << "  -v[number]       - number specifies operations per second; this option will give additional" << std::endl;
+    std::cerr << "                     information on time required to complete session." << std::endl;
     std::cerr << "  -p<path>         - path to .cap file, this will pipe pyrit command with parameters:" << std::endl;
     std::cerr << "                       pyrit -r <path> -i - attack_passthrough" << std::endl;
     std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>." << std::endl;
     std::cerr << "                     Cannot be used with -h" << std::endl;
     std::cerr << "  -h<path>         - path to .hccap file, this will pipe oclHashcat command with parameters:" << std::endl;
     std::cerr << "                       oclHashcat -m 2500 --workload-profile=3 <path>" << std::endl;
-    std::cerr << "                     This will also use blocking output (-B)" << std::endl;
     std::cerr << "  -S               - separate pyrit outputs when -w is used. This option requires -P and -w options." << std::endl;
     std::cerr << "                     Cannot be used with -h" << std::endl;
     std::cerr << "  -B               - Use blocking output to pyrit/oclHashcat. This option requires -p or -h option." << std::endl;
     std::cerr << "                     With -h, it is on by default." << std::endl;
     std::cerr << "  -g<path>         - complete path to pyrit/oclHashcat, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
-    std::cerr << "  -h<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
+    std::cerr << "  -H<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
     std::cerr << "                     for each file found, this option cannot be used with any other options" << std::endl;
     std::cerr << "  -o<path>         - write regular update of state to given file, this file can be used with -a option" << std::endl;
     std::cerr << "  -O<number>       - regular update write in each of <number> cycles; this option requires -o<path>" << std::endl;
@@ -956,19 +956,19 @@ int main(int argc, const char * argv[]) {
                 lastCommand = nullptr;
                 argFile = rarg;
             } else
-            if ((!lastCommand && strncmp(rarg, "h", 1) == 0) || (lastCommand && strncmp(lastCommand, "h", 1) == 0)) {
+            if ((!lastCommand && strncmp(rarg, "H", 1) == 0) || (lastCommand && strncmp(lastCommand, "H", 1) == 0)) {
                 if (argDir != nullptr) {
-                    std::cerr << "-h cannot be used multiple times." << std::endl;;
+                    std::cerr << "-H cannot be used multiple times." << std::endl;;
                     return -1;
                 }
                 if (anyOption) {
-                    std::cerr << "-h cannot be used with any other option." << std::endl;;
+                    std::cerr << "-H cannot be used with any other option." << std::endl;;
                     return -1;
                 }
                 rarg = &rarg[lastCommand ? 0 : 1];
                 if (strlen(rarg) <= 0) {
                     if (lastCommand) {
-                        std::cerr << "-h requires directory name: " << arg << std::endl;;
+                        std::cerr << "-H requires directory name: " << arg << std::endl;;
                         return -1;
                     } else {
                         lastCommand = &arg[1];
@@ -1325,11 +1325,6 @@ int main(int argc, const char * argv[]) {
         }
         // tweaks for OCL HASHCAT
         if (childToUse == USE_OCLHASHCAT) {
-            if (useBlocking) {
-                std::cerr << "-B is always on with -h." << std::endl;
-            } else {
-                useBlocking = true;
-            }
             if (childInstances > 1) {
                 std::cerr << "-P cannot be used with -h." << std::endl;
                 cleanup();
