@@ -2126,10 +2126,10 @@ void push(char* buffer, int len) {
         bytesWritten += len;
         if (poutput) {
             // calculate number of pipe for output
-            int toWrite = -1;
+            FILE* toWrite = nullptr;
             if (useBlocking) {
                 int pipeNo = linesWritten % childInstances;
-                toWrite = dpoutput[pipeNo];
+                toWrite = poutput[pipeNo];
             } else {
                 // if more descriptors were ready, reuse them
                 if (dpollcount <= 0) {
@@ -2148,7 +2148,7 @@ void push(char* buffer, int len) {
                         selectorIndex = (selectorIndex + 1) % childInstances;
                         if (dpolloutput[selectorIndex].revents & POLLOUT) {
                             dpolloutput[selectorIndex].revents = 0;
-                            toWrite = dpoutput[selectorIndex];
+                            toWrite = poutput[selectorIndex];
                             lastWriteIndex = selectorIndex;
                             dpollcount--;
                             break;
@@ -2156,7 +2156,7 @@ void push(char* buffer, int len) {
                     }
                 }
             }
-            if (!quit && (write(toWrite, buffer, len) < 0 || write(toWrite, "\n", 1) < 0)) {
+            if (!quit && (fwrite(buffer, len, 1, toWrite) <= 0 || fputc('\n', toWrite) <= 0)) {
                 std::cerr << "Child input terminated. Pipe closed." << std::endl;
                 quit = true;
             }
