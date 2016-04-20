@@ -90,23 +90,33 @@ unsigned long long bytesWritten = 0;
 
 std::map<int, std::vector<std::vector<int>>> producedPatterns;
 
-const int defPyritInstances = 1;
-int pyritInstances = 0;
-bool separatedPyritOutput = false;
+const int defChildInstances = 1;
+int childInstances = 0;
+bool separatedChildOutput = false;
 bool useBlocking = false;
-bool usePyritWriteOption = false;
+bool useChildWriteOption = false;
+const char* providedPath = nullptr;
+
 const char* defPyritPath = "pyrit";
-const char* pyritPath = nullptr;
 const char* pyrit = "%s -r %s -i - attack_passthrough";
-const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s";
-const char* pyritwSeparatedOutput = "%s -r %s -i - attack_passthrough >> %s-%d";
+const char* pyritwOutput = "%s -r %s -i - attack_passthrough >> %s 2>&1";
+const char* pyritwSeparatedOutput = "%s -r %s -i - attack_passthrough >> %s-%d 2>&1";
 const char* pyritwOutputToFile = "%s -r %s -i - -o %s attack_passthrough >/dev/null 2>&1";
 const char* pyritwSeparatedOutputToFile = "%s -r %s -i - -o %s-%d attack_passthrough >/dev/null 2>&1";
+
+const char* defHashcatPath = "oclHashcat";
+const char* hashcat = "%s -m 2500 --workload-profile=3 %s";
+const char* hashcatwOutput = "%s -m 2500 --workload-profile=3 %s >> %s 2>&1";
+const char* hashcatwOutputToFile = "%s -m 2500 --workload-profile=3 --quiet --outfile=%s %s >/dev/null 2>&1";
+
 FILE** poutput = nullptr;
 int* dpoutput = nullptr;
 struct pollfd* dpolloutput = nullptr;
 int dpollcount = 0;
 const char* capFile = nullptr;
+int childToUse = 0;
+const int USE_PYRIT = 1;
+const int USE_OCLHASHCAT = 2;
 
 const char* argDir = nullptr;
 const char* argFile = nullptr;
@@ -295,7 +305,7 @@ void write_data() {
 
 void usage() {
     std::cerr << "This program will generate a mix from given word list" << std::endl;
-    std::cerr << "    (version 0.5.7)" << std::endl;
+    std::cerr << "    (version 0.6)" << std::endl;
     std::cerr << std::endl;
     std::cerr << " Usage:" << std::endl;
     std::cerr << std::endl;
@@ -309,8 +319,8 @@ void usage() {
     std::cerr << "  -max<number>     - maximum number of characters (recommended to use this)" << std::endl;
     std::cerr << "  -s<charset>      - use provided charset" << std::endl;
     std::cerr << "  -f<path>         - read basic wordset from file instead of stdin" << std::endl;
-    std::cerr << "  -w<path>         - write generated wordset to file instead of stdout, if used with -p, then pyrit output will be written to file" << std::endl;
-    std::cerr << "  -W<path>         - same as -w, except it will use write option of pyrit instead of pyrit's stdout redirection to file; must be used with -p" << std::endl;
+    std::cerr << "  -w<path>         - write generated wordset to file instead of stdout, if used with -p or -h, then pyrit/oclHashcat output will be written to file" << std::endl;
+    std::cerr << "  -W<path>         - same as -w, except it will use write option of pyrit/oclHashcat instead of stdout redirection to file; must be used with -p or -h" << std::endl;
     std::cerr << "  -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)" << std::endl;
     std::cerr << "  -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)" << std::endl;
     std::cerr << "  -l<number>       - minimum number of mixed words (recommended to use this)" << std::endl;
@@ -334,10 +344,16 @@ void usage() {
     std::cerr << "  -v[number]       - number specifies operations per second; this option will give additional" << std::endl;
     std::cerr << "  -p<path>         - path to .cap file, this will pipe pyrit command with parameters:" << std::endl;
     std::cerr << "                       pyrit -r <path> -i - attack_passthrough" << std::endl;
-    std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>" << std::endl;
+    std::cerr << "  -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>." << std::endl;
+    std::cerr << "                     Cannot be used with -h" << std::endl;
+    std::cerr << "  -h<path>         - path to .hccap file, this will pipe oclHashcat command with parameters:" << std::endl;
+    std::cerr << "                       oclHashcat -m 2500 --workload-profile=3 <path>" << std::endl;
+    std::cerr << "                     This will also use blocking output (-B)" << std::endl;
     std::cerr << "  -S               - separate pyrit outputs when -w is used. This option requires -P and -w options." << std::endl;
-    std::cerr << "  -B               - Use blocking output to pyrit. This option requires -p and -P options." << std::endl;
-    std::cerr << "  -g<path>         - complete path to pyrit, if relative does not work" << std::endl;
+    std::cerr << "                     Cannot be used with -h" << std::endl;
+    std::cerr << "  -B               - Use blocking output to pyrit/oclHashcat. This option requires -p or -h option." << std::endl;
+    std::cerr << "                     With -h, it is on by default." << std::endl;
+    std::cerr << "  -g<path>         - complete path to pyrit/oclHashcat, if relative does not work" << std::endl;
     std::cerr << "  -a<path>         - read arguments from file, cannot be used with other arguments" << std::endl;
     std::cerr << "  -h<dir path>     - read all files from given directory and invoke this program with -a<path>" << std::endl;
     std::cerr << "                     for each file found, this option cannot be used with any other options" << std::endl;
@@ -496,10 +512,9 @@ int main(int argc, const char * argv[]) {
                 }
                 lastCommand = nullptr;
                 outFile = rarg;
-                usePyritWriteOption = false;
+                useChildWriteOption = false;
                 anyOption = true;
             } else
-                
             if ((!lastCommand && strncmp(rarg, "W", 1) == 0) || (lastCommand && strncmp(lastCommand, "W", 1) == 0)) {
                 if (outFile != nullptr) {
                     std::cerr << "-W/-w cannot be used multiple times." << std::endl;;
@@ -517,10 +532,9 @@ int main(int argc, const char * argv[]) {
                 }
                 lastCommand = nullptr;
                 outFile = rarg;
-                usePyritWriteOption = true;
+                useChildWriteOption = true;
                 anyOption = true;
             } else
-                
             if (!lastCommand && strncmp(rarg, "n", 1) == 0) {
                 if (norepeat) {
                     std::cerr << "-n cannot be used multiple times." << std::endl;;
@@ -824,7 +838,7 @@ int main(int argc, const char * argv[]) {
             } else
             if ((!lastCommand && strncmp(rarg, "p", 1) == 0) || (lastCommand && strncmp(lastCommand, "p", 1) == 0)) {
                 if (capFile != nullptr) {
-                    std::cerr << "-p cannot be used multiple times." << std::endl;;
+                    std::cerr << "-p/-h cannot be used multiple times." << std::endl;;
                     return -1;
                 }
                 rarg = &rarg[lastCommand ? 0 : 1];
@@ -839,10 +853,31 @@ int main(int argc, const char * argv[]) {
                 }
                 lastCommand = nullptr;
                 capFile = rarg;
+                childToUse = USE_PYRIT;
+                anyOption = true;
+            } else
+            if ((!lastCommand && strncmp(rarg, "h", 1) == 0) || (lastCommand && strncmp(lastCommand, "h", 1) == 0)) {
+                if (capFile != nullptr) {
+                    std::cerr << "-h/-p cannot be used multiple times." << std::endl;;
+                    return -1;
+                }
+                rarg = &rarg[lastCommand ? 0 : 1];
+                if (strlen(rarg) <= 0) {
+                    if (lastCommand) {
+                        std::cerr << "-h requires file name: " << arg << std::endl;;
+                        return -1;
+                    } else {
+                        lastCommand = &arg[1];
+                        continue;
+                    }
+                }
+                lastCommand = nullptr;
+                capFile = rarg;
+                childToUse = USE_OCLHASHCAT;
                 anyOption = true;
             } else
             if ((!lastCommand && strncmp(rarg, "P", 1) == 0) || (lastCommand && strncmp(lastCommand, "P", 1) == 0)) {
-                if (pyritInstances > 0) {
+                if (childInstances > 0) {
                     std::cerr << "-P cannot be used multiple times." << std::endl;;
                     return -1;
                 }
@@ -857,19 +892,19 @@ int main(int argc, const char * argv[]) {
                     }
                 }
                 lastCommand = nullptr;
-                pyritInstances = atoi(rarg);
-                if (pyritInstances <= 0) {
+                childInstances = atoi(rarg);
+                if (childInstances <= 0) {
                     std::cerr << "-P requires number: " << arg << std::endl;
                     return -1;
                 }
                 anyOption = true;
             } else
             if (!lastCommand && strncmp(rarg, "S", 1) == 0) {
-                if (separatedPyritOutput) {
+                if (separatedChildOutput) {
                     std::cerr << "-S cannot be used multiple times." << std::endl;;
                     return -1;
                 }
-                separatedPyritOutput = true;
+                separatedChildOutput = true;
                 anyOption = true;
             } else
             if (!lastCommand && strncmp(rarg, "B", 1) == 0) {
@@ -881,7 +916,7 @@ int main(int argc, const char * argv[]) {
                 anyOption = true;
             } else
             if ((!lastCommand && strncmp(rarg, "g", 1) == 0) || (lastCommand && strncmp(lastCommand, "g", 1) == 0)) {
-                if (pyritPath != nullptr) {
+                if (providedPath != nullptr) {
                     std::cerr << "-g cannot be used multiple times." << std::endl;;
                     return -1;
                 }
@@ -896,7 +931,7 @@ int main(int argc, const char * argv[]) {
                     }
                 }
                 lastCommand = nullptr;
-                pyritPath = rarg;
+                providedPath = rarg;
                 anyOption = true;
             } else
             if ((!lastCommand && strncmp(rarg, "a", 1) == 0) || (lastCommand && strncmp(lastCommand, "a", 1) == 0)) {
@@ -1283,36 +1318,54 @@ int main(int argc, const char * argv[]) {
             cleanup();
             return -1;
         }
-        if (!outFile && separatedPyritOutput) {
+        if (!outFile && separatedChildOutput) {
             std::cerr << "-S cannot be used without -w." << std::endl;
             cleanup();
             return -1;
         }
+        // tweaks for OCL HASHCAT
+        if (childToUse == USE_OCLHASHCAT) {
+            if (useBlocking) {
+                std::cerr << "-B is always on with -h." << std::endl;
+            } else {
+                useBlocking = true;
+            }
+            if (childInstances > 1) {
+                std::cerr << "-P cannot be used with -h." << std::endl;
+                cleanup();
+                return -1;
+            }
+            if (separatedChildOutput) {
+                std::cerr << "-S cannot be used with -h." << std::endl;
+                cleanup();
+                return -1;
+            }
+        }
     } else {
         if (useBlocking) {
-            std::cerr << "-B cannot be used without -p." << std::endl;
+            std::cerr << "-B cannot be used without -p or -h." << std::endl;
             cleanup();
             return -1;
         }
     }
-    if (capFile && pyritInstances < 1) {
-        pyritInstances = defPyritInstances;
+    if (capFile && childInstances < 1) {
+        childInstances = defChildInstances;
     }
     // check and prepare output
     if (outFile) {
         if (capFile) {
             // check conflicts
-            if (pyritInstances < 1 && separatedPyritOutput) {
-                std::cerr << "Cannot use separated pyrit outputs with one pyrit instance (-S and -p)" << std::endl;
+            if (childInstances < 1 && separatedChildOutput) {
+                std::cerr << "Cannot use separated outputs with one child instance (-S and -p/-h)" << std::endl;
                 cleanup();
                 return -1;
             }
             // if capFile then just check if the file exists
             // remove backup if exists
-            for(int i = 0 ; i < pyritInstances ; i++) {
+            for(int i = 0 ; i < childInstances ; i++) {
                 char* newOutFile = new char[1024];
                 char *backFile = new char[1024];
-                if (separatedPyritOutput) {
+                if (separatedChildOutput) {
                     sprintf(newOutFile, "%s-%d", outFile, i+1);
                     sprintf(backFile, "%s-%d~", outFile, i+1);
                 } else {
@@ -1556,27 +1609,57 @@ int main(int argc, const char * argv[]) {
     std::cerr << "Mix will now start working..." << std::endl;
     // also try to setup pyrit
     if (capFile) {
-        std::cerr << "Starting pyrit command" << std::endl;
-        char buffer[1024];
-        if (!pyritPath) {
-            pyritPath = defPyritPath;
+        switch(childToUse) {
+            case USE_OCLHASHCAT:
+                std::cerr << "Starting oclHashcat command" << std::endl;
+                if (!providedPath) {
+                    providedPath = defHashcatPath;
+                }
+                break;
+            case USE_PYRIT:
+                std::cerr << "Starting pyrit command" << std::endl;
+                if (!providedPath) {
+                    providedPath = defPyritPath;
+                }
+                break;
+            default:
+                std::cerr << "Could not open child, unrecognized type " << childToUse << std::endl;
+                cleanup();
+                return -1;
         }
-        if (outFile && !separatedPyritOutput) {
-            sprintf(buffer, usePyritWriteOption ? pyritwOutputToFile : pyritwOutput, pyritPath, capFile, outFile);
-        } else {
-            sprintf(buffer, pyrit, pyritPath, capFile);
-        }
-        poutput = new FILE*[pyritInstances];
-        dpoutput = new int[pyritInstances];
-        dpolloutput = new struct pollfd[pyritInstances];
+        poutput = new FILE*[childInstances];
+        dpoutput = new int[childInstances];
+        dpolloutput = new struct pollfd[childInstances];
         dpollcount = 0;
-        for(int i = 0 ; i < pyritInstances ; i++) {
-            if (capFile && separatedPyritOutput) {
-                sprintf(buffer, usePyritWriteOption ? pyritwSeparatedOutputToFile : pyritwSeparatedOutput, pyritPath, capFile, outFile, i+1);
+        char buffer[1024];
+        for(int i = 0 ; i < childInstances ; i++) {
+            switch(childToUse) {
+                case USE_OCLHASHCAT:
+                    if (outFile) {
+                        if (useChildWriteOption) {
+                            sprintf(buffer, hashcatwOutputToFile, providedPath, outFile, capFile);
+                        } else {
+                            sprintf(buffer, hashcatwOutput, providedPath, capFile, outFile);
+                        }
+                    } else {
+                        sprintf(buffer, hashcat, providedPath, capFile);
+                    }
+                    break;
+                case USE_PYRIT:
+                    if (outFile) {
+                        if (separatedChildOutput) {
+                            sprintf(buffer, useChildWriteOption ? pyritwSeparatedOutputToFile : pyritwSeparatedOutput, providedPath, capFile, outFile, i+1);
+                        } else {
+                            sprintf(buffer, useChildWriteOption ? pyritwOutputToFile : pyritwOutput, providedPath, capFile, outFile);
+                        }
+                    } else {
+                        sprintf(buffer, pyrit, providedPath, capFile);
+                    }
+                    break;
             }
             poutput[i] = popen(buffer, "w");
             if (!poutput[i]) {
-                std::cerr << "Could not open pyrit with pipe." << std::endl;
+                std::cerr << "Could not open child with pipe." << std::endl;
                 cleanup();
                 return -1;
             }
@@ -1589,12 +1672,12 @@ int main(int argc, const char * argv[]) {
         }
         std::cerr << "Setting " << (useBlocking ? "" : "non-") << "blocking mode." << std::endl;
     } else {
-        if (pyritInstances > 0) {
+        if (childInstances > 0) {
             std::cerr << "Cannot use -P with no -p set." << std::endl;
             cleanup();
             return -1;
         }
-        if (usePyritWriteOption) {
+        if (useChildWriteOption) {
             std::cerr << "Cannot use -W with no -p set." << std::endl;
             cleanup();
             return -1;
@@ -2050,13 +2133,13 @@ void push(char* buffer, int len) {
             // calculate number of pipe for output
             int toWrite = -1;
             if (useBlocking) {
-                int pipeNo = linesWritten % pyritInstances;
+                int pipeNo = linesWritten % childInstances;
                 toWrite = dpoutput[pipeNo];
             } else {
                 // if more descriptors were ready, reuse them
                 if (dpollcount <= 0) {
                     // -1 is for timeout infinite
-                    dpollcount = poll(dpolloutput, pyritInstances, -1);
+                    dpollcount = poll(dpolloutput, childInstances, -1);
                 }
                 // Check if any descriptors ready
                 if (dpollcount == -1 || dpollcount == 0) {
@@ -2066,8 +2149,8 @@ void push(char* buffer, int len) {
                 } else {
                     // now we have number of descriptors ready
                     int selectorIndex = lastWriteIndex;
-                    for(int i = 0 ; i < pyritInstances ; i++) {
-                        selectorIndex = (selectorIndex + 1) % pyritInstances;
+                    for(int i = 0 ; i < childInstances ; i++) {
+                        selectorIndex = (selectorIndex + 1) % childInstances;
                         if (dpolloutput[selectorIndex].revents & POLLOUT) {
                             dpolloutput[selectorIndex].revents = 0;
                             toWrite = dpoutput[selectorIndex];
@@ -2396,7 +2479,7 @@ void pattern() {
 
 void cleanup() {
     if (poutput) {
-        for(int i = 0 ; i < pyritInstances ; i++) {
+        for(int i = 0 ; i < childInstances ; i++) {
             if (poutput[i]) {
                 pclose(poutput[i]);
                 poutput[i] = nullptr;

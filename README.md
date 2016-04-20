@@ -1,5 +1,5 @@
 # mixer
-A wrapper around pyrit WPA cracker; resumable multiple dictionaries mixer with charset support
+A wrapper around pyrit/oclHashcat [WPA] crackers; resumable multiple dictionaries mixer with charset support
 
 * WARNING * I know this code is ugly and looks like s**t. BUT, it does what it was supposed to,
 and if I get enough requests for refactoring - I will make it out into a beautiful C++ project.
@@ -52,80 +52,78 @@ to use -L option:
 
 Use it freely, and provide Your feedback. Use this software only with accordance to Your local law.
 
+*** A NOTE ON OCLHASHCAT INSTALLATION ***
+
+oclHashcat is distributed as a zip containing executable and some subfolders. Mixer will try to invoke
+"oclHashcat" command, which is NOT part of oclHashcat package.
+I have found out, that the best way to install oclHashcat into Linux system is to copy the whole package
+into /usr/local/bin, i.e. the contents of the package are in /usr/local/bin/oclHashcat-2.01 folder.
+Then, easy enough is to create a short script /usr/local/bin/oclHashcat:
+
+    #!/bin/sh
+    /usr/local/bin/oclHashcat-2.01/oclHashcat64.bin "$@"
+    
+This will enable system-wide command "oclHashcat". Note: ln -s ... does not work in this case.
 
 **** STANDARD HELP ****
+
+This program will generate a mix from given word list
+    (version 0.6)
+
+ Usage:
 
     mix [options] <word1> <word2> [word3] ....
 
             (ctrl-c on running application will produce benchmarks)
 
 
-    Options:
+     Options: (please note that you may separate values from option or concatenate them)
+      -min<number>     - minimum number of characters (default 8)
+      -max<number>     - maximum number of characters (recommended to use this)
+      -s<charset>      - use provided charset
+      -f<path>         - read basic wordset from file instead of stdin
+      -w<path>         - write generated wordset to file instead of stdout, if used with -p or -h, then pyrit/oclHashcat output will be written to file
+      -W<path>         - same as -w, except it will use write option of pyrit/oclHashcat instead of stdout redirection to file; must be used with -p or -h
+      -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)
+      -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)
+      -l<number>       - minimum number of mixed words (recommended to use this)
+      -L<number>       - maximum number of mixed words (recommended to use this)
+      -i<number>       - ignore words shorter than certain number of characters (1 by default). If set and -min is not used,
+                         it will also override -min default setting.
+      -I<number>       - ignore words longer than certain number of characters (64 by default if -max
+                         is not used, if -max is used, then by default equal to -max; -I supercedes -max)
+      -n               - do not repeat words in phrase
+      -tl              - pre-process all words to lowercase
+      -tu              - pre-process all words to uppercase
+      -c               - generate more words by capitalizing first letter of the word
+      -d               - generate more words by decapitalizing first letter of the word
+      -u               - generate more words by permutatively capitalizing all letters of the word (supercedes -c).
+                         This will also lowercase all the words given. Use with caution.
+      -e               - eliminate repeating words, this may take a very long time
+      -x<number>       - resume at specific line number, cannot be used with -z.
+      -z<data>         - resume at specific program state, fast, but requires special data format, excludes -x.
+      -q<number>       - quit at specific line number
+      -b               - run benchmark only for 10 seconds, this excludes all other options
+      -v[number]       - number specifies operations per second; this option will give additional
+      -p<path>         - path to .cap file, this will pipe pyrit command with parameters:
+                           pyrit -r <path> -i - attack_passthrough
+      -P<number>       - number of instances of pyrit to run, default 1; use only with -p<>.
+                         Cannot be used with -h
+      -h<path>         - path to .hccap file, this will pipe oclHashcat command with parameters:
+                           oclHashcat -m 2500 --workload-profile=3 <path>
+                         This will also use blocking output (-B)
+      -S               - separate pyrit outputs when -w is used. This option requires -P and -w options.
+                         Cannot be used with -h
+      -B               - Use blocking output to pyrit/oclHashcat. This option requires -p or -h option.
+                         With -h, it is on by default.
+      -g<path>         - complete path to pyrit/oclHashcat, if relative does not work
+      -a<path>         - read arguments from file, cannot be used with other arguments
+      -h<dir path>     - read all files from given directory and invoke this program with -a<path>
+                         for each file found, this option cannot be used with any other options
+      -o<path>         - write regular update of state to given file, this file can be used with -a option
+      -O<number>       - regular update write in each of <number> cycles; this option requires -o<path>
+                         if not specified, then 1000000 is used
     
-    -min<number>     - minimum number of characters (default 8)
-    
-    -max<number>     - maximum number of characters (recommended to use this)
-    
-    -s<charset>      - use provided charset
-    
-    -f<path>         - read basic wordset from file instead of stdin
-    
-    -w<path>         - write generated wordset to file instead of stdout, cannot be used with -p
-    
-    -r<char1><char2> - generate more words by replacing char1 with char2 (case-sensitive)
-    
-    -R<char1><char2> - generate more words by replacing char1 with char2 (case-insensitive)
-    
-    -l<number>       - minimum number of mixed words (recommended to use this)
-    
-    -L<number>       - maximum number of mixed words (recommended to use this)
-    
-    -i<number>       - ignore words shorter than certain number of characters (1 by default). If set and -min is not used,
-                     it will also override -min default setting.
-                     
-    -I<number>       - ignore words longer than certain number of characters (64 by default if -max
-                     is not used, if -max is used, then by default equal to -max; -I supercedes -max)
-                     
-    -n               - do not repeat words in phrase
-    
-    -tl              - pre-process all words to lowercase
-    
-    -tu              - pre-process all words to uppercase
-    
-    -c               - generate more words by capitalizing first letter of the word
-    
-    -d               - generate more words by decapitalizing first letter of the word
-    
-    -u               - generate more words by permutatively capitalizing all letters of the word (supercedes -c).
-                     This will also lowercase all the words given. Use with caution.
-                     
-    -e               - eliminate repeating words, this may take a very long time
-    
-    -x<number>       - resume at specific line number, cannot be used with -z.
-    
-    -z<data>         - resume at specific program state, fast, but requires special data format, excludes -x.
-    
-    -q<number>       - quit at specific line number
-    
-    -b               - run benchmark only for 10 seconds, this excludes all other options
-    
-    -v[number]       - number specifies operations per second; this option will give additional
-    
-    -p<path>         - path to .cap file, this will pipe pyrit command with parameters:
-                       pyrit -r <path> -i - attack_passthrough
-                       
-    -g<path>         - complete path to pyrit, if relative does not work
-    
-    -a<path>         - read arguments from file, cannot be used with other arguments
-    
-    -h<dir path>     - read all files from given directory and invoke this program with -a<path>
-                     for each file found, this option cannot be used with any other options
-                     
-    -o<path>         - write regular update of state to given file, this file can be used with -a option
-    
-    -O<number>       - regular update write in each of <number> cycles; this option requires -o<path>
-                     if not specified, then 1000000 is used
-
-                     Note: use SIGUSR1 to trigger printout of current word.
+                         Note: use SIGUSR1 to trigger printout of current word.
 
 
