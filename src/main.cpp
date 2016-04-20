@@ -1353,6 +1353,11 @@ int main(int argc, const char * argv[]) {
             cleanup();
             return -1;
         }
+        if (forceNonBlocking) {
+            std::cerr << "-N cannot be used without -p or -h." << std::endl;
+            cleanup();
+            return -1;
+        }
     }
     if (capFile && childInstances < 1) {
         childInstances = defChildInstances;
