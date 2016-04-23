@@ -2511,7 +2511,9 @@ void cleanup() {
     if (poutput) {
         for(int i = 0 ; i < childInstances ; i++) {
             if (poutput[i]) {
-                fflush(poutput[i]);
+                if (!quit && !feof(poutput[i])) {
+                    fflush(poutput[i]);
+                }
                 pclose(poutput[i]);
                 poutput[i] = nullptr;
             }
