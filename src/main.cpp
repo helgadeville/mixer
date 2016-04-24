@@ -106,7 +106,7 @@ const char* pyritwOutputToFile = "%s -r %s -i - -o %s attack_passthrough >/dev/n
 const char* pyritwSeparatedOutputToFile = "%s -r %s -i - -o %s-%d attack_passthrough >/dev/null 2>&1";
 
 const char* defHashcatPath = "oclHashcat";
-const char* hashcat = "%s -m 2500 --workload-profile=3 %s";
+const char* hashcat = "%s -m 2500 --workload-profile=3 --restore-disable --potfile-disable --logfile-disable %s";
 const char* hashcatwOutput = "%s -m 2500 --workload-profile=3 --restore-disable --potfile-disable --logfile-disable %s >> %s 2>&1";
 const char* hashcatwOutputToFile = "%s -m 2500 --workload-profile=3 --quiet --restore-disable --potfile-disable --logfile-disable --outfile=%s %s >/dev/null 2>&1";
 
